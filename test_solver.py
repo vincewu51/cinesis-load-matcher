@@ -300,7 +300,8 @@ def test_workbook_answers_and_preservation(tmp_path, workbook, profile, document
     assert wb["Part B (Fill In)"]["B5"].value == "L03"
     assert wb["Part B (Fill In)"]["C5"].value == "3.098"
     assert "CONDITIONAL" in wb["Part B (Fill In)"]["A2"].value
-    assert "test fixture" in wb["Part B (Fill In)"]["A10"].value
+    assert "test fixture" in wb["Part B (Fill In)"]["A11"].value
+    assert wb["Part B (Fill In)"]["A10"].value.startswith("Paste a link to your code")
     wb.close()
 
 
@@ -403,7 +404,7 @@ def test_catalog_workbook_discloses_estimate(tmp_path, workbook, profile, docume
     assert wb["Part A (Fill In)"]["B13"].value == "Unknown — not stated"
     assert wb["Part A (Fill In)"]["A16"].value == "Catalog estimate (not confirmed)"
     assert wb["Part A (Fill In)"]["B16"].value == 8710
-    note = wb["Part B (Fill In)"]["A10"].value
+    note = wb["Part B (Fill In)"]["A11"].value
     assert "not a guaranteed truck limit" in note
     assert "bigtextrailers.com" in note
     assert len(note.split()) <= 200

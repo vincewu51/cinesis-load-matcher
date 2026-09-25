@@ -204,7 +204,7 @@ def write_outputs(source, output, profile, document, result, repo_url=None):
     b = {
         "A2": label
         + " Effective rate includes all three legs. Factoring approval remains unverified.",
-        "A10": note,
+        "A11": note,
     }
     if document["extraction"]["kind"] != "openai":
         a["A1"] = b["A1"] = "PREVIEW — test fixture, not live LLM output"
