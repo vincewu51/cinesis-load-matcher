@@ -1,0 +1,10 @@
+{
+  "current_location": {"value": "Dallas", "evidence": [{"row": 4, "quote": "I'm in Dallas."}], "interpretation": "Explicit current location."},
+  "home_base": {"value": "San Antonio", "evidence": [{"row": 3, "quote": "based out in San Antonio"}, {"row": 4, "quote": "Yes, that’s correct."}], "interpretation": "Driver confirms dispatcher context."},
+  "minimum_rate": {"value": {"dollars_per_mile": 2.0, "comparison": ">"}, "evidence": [{"row": 22, "quote": "As long as it’s above $2 per mile, I’ll consider it."}], "interpretation": "Strictly above; apply to effective rate as instructed."},
+  "equipment": {"value": ["Hotshot", "Gooseneck"], "evidence": [{"row": 20, "quote": "I run a hotshot gooseneck trailer."}], "interpretation": "Map the stated equipment to board labels."},
+  "weight_capacity_lb": {"value": null, "evidence": [], "interpretation": "Not stated. Dispatcher load weight is not capacity."},
+  "geographic_preferences": {"value": ["Laredo", "Corpus", "Rio Grande Valley", "Midland", "Odessa"], "evidence": [{"row": 21, "quote": "I prefer South Texas lanes like Laredo, Corpus, Rio Grande Valley, Midland, and Odessa."}], "interpretation": "Soft preferences; not geographic prohibitions."},
+  "factoring_requirement": {"value": "Broker must be approved by driver's factoring company", "evidence": [{"row": 16, "quote": "I also need to make sure the broker is valid for my factoring company."}], "interpretation": "Cannot verify without broker details."},
+  "ambiguities": ["Weight capacity is not stated.", "Factoring company and approved brokers are not identified."]
+}
