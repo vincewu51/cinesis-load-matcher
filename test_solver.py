@@ -54,7 +54,7 @@ def test_haversine_known_geometry():
 
 
 def test_conditional_top_three_and_empty_return(profile, inputs):
-    result = rank_loads(profile, inputs[1], 15000)
+    result = rank_loads(profile, inputs[1], 14200)
     assert result["mode"] == "conditional"
     assert [r["load_id"] for r in result["top_three"]] == ["L03", "L08", "L02"]
     assert [f"{r['effective_rate_per_mile']:.3f}" for r in result["top_three"]] == [
@@ -68,15 +68,12 @@ def test_conditional_top_three_and_empty_return(profile, inputs):
     assert profile.weight_capacity_lb.value is None
 
 
-def test_unknown_capacity_is_not_eligibility(profile, inputs):
+def test_unknown_capacity_returns_provisional_ranking(profile, inputs):
     result = rank_loads(profile, inputs[1])
-    assert result["mode"] == "needs_capacity"
-    assert result["top_three"] == []
-    assert [r["load_id"] for r in result["audit"] if r["status"] == "needs_capacity"] == [
-        "L02",
-        "L03",
-        "L08",
-    ]
+    assert result["mode"] == "provisional_unknown_capacity"
+    assert [r["load_id"] for r in result["top_three"]] == ["L03", "L08", "L02"]
+    assert all(r["status"] == "provisional" for r in result["top_three"])
+    assert [r["weight_lb"] for r in result["top_three"]] == [14200, 12600, 11500]
 
 
 @pytest.mark.parametrize(
@@ -93,7 +90,7 @@ def test_capacity_sensitivity(profile, inputs, capacity, expected):
 
 
 def test_equipment_missing_data_and_rejections(profile, inputs):
-    rows = {r["load_id"]: r for r in rank_loads(profile, inputs[1], 15000)["audit"]}
+    rows = {r["load_id"]: r for r in rank_loads(profile, inputs[1], 14200)["audit"]}
     assert "incompatible equipment" in rows["L05"]["reasons"]
     assert "incompatible equipment" in rows["L04"]["reasons"]
     assert "effective rate does not meet" in " ".join(rows["L04"]["reasons"])
@@ -103,13 +100,13 @@ def test_equipment_missing_data_and_rejections(profile, inputs):
 
 def test_strict_rate_boundary_uses_full_precision(profile, inputs):
     rows = inputs[1]
-    rate = next(r for r in rank_loads(profile, rows, 15000)["audit"] if r["load_id"] == "L03")[
+    rate = next(r for r in rank_loads(profile, rows, 14200)["audit"] if r["load_id"] == "L03")[
         "effective_rate_per_mile"
     ]
     profile.minimum_rate.value.dollars_per_mile = rate
-    assert not rank_loads(profile, rows, 15000)["top_three"]
+    assert not rank_loads(profile, rows, 14200)["top_three"]
     profile.minimum_rate.value.comparison = ">="
-    assert rank_loads(profile, rows, 15000)["top_three"][0]["load_id"] == "L03"
+    assert rank_loads(profile, rows, 14200)["top_three"][0]["load_id"] == "L03"
 
 
 def test_confirmed_capacity_cannot_be_overridden(profile, inputs):
@@ -119,7 +116,7 @@ def test_confirmed_capacity_cannot_be_overridden(profile, inputs):
     assert result["mode"] == "verified_capacity"
     assert [r["load_id"] for r in result["top_three"]] == ["L08", "L02"]
     with pytest.raises(ValueError):
-        rank_loads(profile, inputs[1], 15000)
+        rank_loads(profile, inputs[1], 14200)
 
 
 @pytest.mark.parametrize("bad", [0, -1, math.nan, math.inf])
@@ -141,17 +138,17 @@ def test_invalid_capacity(profile, inputs, bad):
 def test_malformed_load_excluded(profile, inputs, field, value):
     rows = inputs[1]
     rows[2][field] = value
-    assert "L03" not in [r["load_id"] for r in rank_loads(profile, rows, 15000)["top_three"]]
+    assert "L03" not in [r["load_id"] for r in rank_loads(profile, rows, 14200)["top_three"]]
 
 
 def test_duplicate_ids_and_ties(profile, inputs):
     rows = inputs[1]
     copy = {**rows[2], "Load ID": "L00"}
-    assert [r["load_id"] for r in rank_loads(profile, rows + [copy], 15000)["top_three"]][:2] == [
+    assert [r["load_id"] for r in rank_loads(profile, rows + [copy], 14200)["top_three"]][:2] == [
         "L00",
         "L03",
     ]
-    duplicated = rank_loads(profile, rows + [rows[2]], 15000)
+    duplicated = rank_loads(profile, rows + [rows[2]], 14200)
     assert "L03" not in [r["load_id"] for r in duplicated["top_three"]]
 
 
@@ -171,7 +168,7 @@ def test_zero_total_distance_excluded(profile, inputs):
             "Price ($)": 5000,
         }
     ]
-    result = rank_loads(profile, rows, 15000)
+    result = rank_loads(profile, rows, 14200)
     assert result["audit"][-1]["reasons"] == ["zero total trip distance"]
 
 
@@ -282,7 +279,7 @@ def test_stale_saved_profile_rejected(tmp_path, document, inputs):
 
 def test_workbook_answers_and_preservation(tmp_path, workbook, profile, document, inputs):
     before = hashlib.sha256(workbook.read_bytes()).hexdigest()
-    result = rank_loads(profile, inputs[1], 15000)
+    result = rank_loads(profile, inputs[1], 14200)
     write_outputs(workbook, tmp_path, profile, document, result, None)
     assert hashlib.sha256(workbook.read_bytes()).hexdigest() == before
     with (
@@ -296,7 +293,7 @@ def test_workbook_answers_and_preservation(tmp_path, workbook, profile, document
     wb = load_workbook(tmp_path / "completed.xlsx", read_only=True, data_only=True)
     assert wb["Part A (Fill In)"]["B5"].value == "Dallas"
     assert wb["Part A (Fill In)"]["B13"].value.startswith("Unknown")
-    assert wb["Part A (Fill In)"]["B16"].value == 15000
+    assert wb["Part A (Fill In)"]["B16"].value == 14200
     assert wb["Part B (Fill In)"]["B5"].value == "L03"
     assert wb["Part B (Fill In)"]["C5"].value == "3.098"
     assert "CONDITIONAL" in wb["Part B (Fill In)"]["A2"].value
@@ -306,17 +303,22 @@ def test_workbook_answers_and_preservation(tmp_path, workbook, profile, document
     wb.close()
 
 
-def test_strict_output_no_top_three(tmp_path, workbook, profile, document, inputs):
+def test_unknown_capacity_workbook_is_provisional(tmp_path, workbook, profile, document, inputs):
     result = rank_loads(profile, inputs[1])
     write_outputs(workbook, tmp_path, profile, document, result, None)
-    wb = load_workbook(tmp_path / "completed.xlsx", read_only=True)
-    assert wb["Part B (Fill In)"]["B5"].value == "Not established"
-    assert wb["Part B (Fill In)"]["C5"].value is None
+    wb = load_workbook(tmp_path / "completed.xlsx", read_only=True, data_only=True)
+    assert wb["Part A (Fill In)"]["B13"].value == "Unknown — not stated"
+    assert wb["Part A (Fill In)"]["A16"].value is None
+    assert wb["Part A (Fill In)"]["B16"].value is None
+    assert wb["Part B (Fill In)"]["B5"].value == "L03"
+    assert wb["Part B (Fill In)"]["C5"].value == "3.098"
+    assert "PROVISIONAL" in wb["Part B (Fill In)"]["A2"].value
+    assert "L03 14,200 lb" in wb["Part B (Fill In)"]["A11"].value
     wb.close()
 
 
 def test_submission_note_word_limit(profile, inputs):
-    for capacity in [None, 15000]:
+    for capacity in [None, 14200]:
         note = submission_note(
             rank_loads(profile, inputs[1], capacity),
             "https://github.com/example/project",
@@ -385,7 +387,7 @@ def test_stated_capacity_precedes_catalog(profile, inputs):
     assert result["capacity_source"] == "transcript"
     assert result["capacity_estimate"] is None
     with pytest.raises(ValueError):
-        rank_loads(profile, inputs[1], 15000, ROOT / "data/truck-capacities.json")
+        rank_loads(profile, inputs[1], 14200, ROOT / "data/truck-capacities.json")
 
 
 @pytest.mark.parametrize("bad", [-1, float("nan"), float("inf"), 20000])

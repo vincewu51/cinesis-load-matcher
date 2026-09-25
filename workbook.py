@@ -168,16 +168,22 @@ def submission_note(result, repo_url, extraction_kind, profile):
     elif result["capacity_lb"] is not None:
         capacity = f"Use the stated {result['capacity_lb']:,.0f} lb capacity."
     else:
+        required = ", ".join(
+            f"{row['load_id']} {row['weight_lb']:,.0f} lb" for row in result["top_three"]
+        )
         capacity = (
-            "Capacity unstated; weight eligibility and the final top three remain unresolved."
+            "Capacity is unstated, so the ranking is provisional. "
+            f"Confirm payload capacity for {required} before booking."
         )
     minimum = profile.minimum_rate.value
     sections = [
         f"Code: {repo_url or 'Public GitHub URL pending.'}",
         f"1. Extraction: {extraction}",
-        "2. Ranking: Use board coordinates and haversine miles for current location → pickup → delivery → home. "
-        "Effective rate = price / total miles. "
-        f"Filter equipment, weight, and rate {minimum.comparison} ${minimum.dollars_per_mile:g}/mile before sorting; display three decimals.",
+        (
+            "2. Ranking: Use board coordinates and haversine miles for current location → pickup → delivery → home. "
+            "Effective rate = price / total miles. Apply known equipment and rate "
+            f"({minimum.comparison} ${minimum.dollars_per_mile:g}/mile) constraints, then sort at full precision and display three decimals."
+        ),
         f"3. Assumptions: {capacity} Geography is a preference. Generic Flatbed compatibility and broker factoring approval are unconfirmed.",
         "4. Incomplete data: Exclude L06 (missing price) and L07 (missing destination); do not substitute zeros.",
         "5. Rejected example: L04 pays $1,500 but requires Van equipment, which does not match this driver's Hotshot/Gooseneck. Its $1.419 effective rate also falls below the $2 minimum.",
@@ -205,17 +211,19 @@ def write_outputs(source, output, profile, document, result, repo_url=None):
             ],
         )
     )
-    a.update(
-        A16="Catalog estimate (not confirmed)"
-        if result["capacity_source"] == "catalog_minimum"
-        else "Capacity assumption (not extracted)",
-        B16=result["capacity_lb"] if result["mode"] == "conditional" else "None",
-    )
-    label = (
-        f"CONDITIONAL: assumes {result['capacity_lb']:g} lb capacity."
-        if result["mode"] == "conditional"
-        else result["mode"]
-    )
+    if result["capacity_source"] in {"catalog_minimum", "explicit_assumption"}:
+        a.update(
+            A16="Catalog estimate (not confirmed)"
+            if result["capacity_source"] == "catalog_minimum"
+            else "Capacity assumption (not extracted)",
+            B16=result["capacity_lb"],
+        )
+    if result["mode"] == "conditional":
+        label = f"CONDITIONAL: uses {result['capacity_lb']:g} lb capacity."
+    elif result["mode"] == "provisional_unknown_capacity":
+        label = "PROVISIONAL: ranked on known constraints; capacity requires confirmation."
+    else:
+        label = result["mode"]
     b = {
         "A2": label
         + " Effective rate includes all three legs. Factoring approval remains unverified.",

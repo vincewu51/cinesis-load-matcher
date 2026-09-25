@@ -1,7 +1,7 @@
 {
-  "mode": "conditional",
-  "capacity_lb": 15000.0,
-  "capacity_source": "explicit_assumption",
+  "mode": "provisional_unknown_capacity",
+  "capacity_lb": null,
+  "capacity_source": "unknown",
   "capacity_estimate": null,
   "current_coordinates": [
     32.7767,
@@ -20,8 +20,10 @@
       "equipment": "Gooseneck",
       "weight_lb": 14200.0,
       "price_usd": 1500.0,
-      "status": "conditional",
-      "reasons": [],
+      "status": "provisional",
+      "reasons": [
+        "driver weight capacity not stated; confirm at least 14200 lb"
+      ],
       "deadhead_to_origin_miles": 182.1210847751361,
       "loaded_miles": 171.70759573213186,
       "deadhead_home_miles": 130.42746154167708,
@@ -35,8 +37,10 @@
       "equipment": "Hotshot",
       "weight_lb": 12600.0,
       "price_usd": 1700.0,
-      "status": "conditional",
-      "reasons": [],
+      "status": "provisional",
+      "reasons": [
+        "driver weight capacity not stated; confirm at least 12600 lb"
+      ],
       "deadhead_to_origin_miles": 0.0,
       "loaded_miles": 462.2590865024532,
       "deadhead_home_miles": 223.1111904032326,
@@ -50,8 +54,10 @@
       "equipment": "Hotshot",
       "weight_lb": 11500.0,
       "price_usd": 1600.0,
-      "status": "conditional",
-      "reasons": [],
+      "status": "provisional",
+      "reasons": [
+        "driver weight capacity not stated; confirm at least 11500 lb"
+      ],
       "deadhead_to_origin_miles": 224.79747102113302,
       "loaded_miles": 292.9824980432208,
       "deadhead_home_miles": 143.89762845058294,
@@ -70,7 +76,6 @@
       "status": "rejected",
       "reasons": [
         "incompatible equipment",
-        "weight exceeds 15000 lb capacity",
         "effective rate does not meet driver's minimum"
       ],
       "deadhead_to_origin_miles": 31.04818794830975,
@@ -86,8 +91,10 @@
       "equipment": "Hotshot",
       "weight_lb": 11500.0,
       "price_usd": 1600.0,
-      "status": "conditional",
-      "reasons": [],
+      "status": "provisional",
+      "reasons": [
+        "driver weight capacity not stated; confirm at least 11500 lb"
+      ],
       "deadhead_to_origin_miles": 224.79747102113302,
       "loaded_miles": 292.9824980432208,
       "deadhead_home_miles": 143.89762845058294,
@@ -101,8 +108,10 @@
       "equipment": "Gooseneck",
       "weight_lb": 14200.0,
       "price_usd": 1500.0,
-      "status": "conditional",
-      "reasons": [],
+      "status": "provisional",
+      "reasons": [
+        "driver weight capacity not stated; confirm at least 14200 lb"
+      ],
       "deadhead_to_origin_miles": 182.1210847751361,
       "loaded_miles": 171.70759573213186,
       "deadhead_home_miles": 130.42746154167708,
@@ -119,7 +128,6 @@
       "status": "rejected",
       "reasons": [
         "incompatible equipment",
-        "weight exceeds 15000 lb capacity",
         "effective rate does not meet driver's minimum"
       ],
       "deadhead_to_origin_miles": 17.734563242494453,
@@ -177,8 +185,10 @@
       "equipment": "Hotshot",
       "weight_lb": 12600.0,
       "price_usd": 1700.0,
-      "status": "conditional",
-      "reasons": [],
+      "status": "provisional",
+      "reasons": [
+        "driver weight capacity not stated; confirm at least 12600 lb"
+      ],
       "deadhead_to_origin_miles": 0.0,
       "loaded_miles": 462.2590865024532,
       "deadhead_home_miles": 223.1111904032326,
@@ -187,7 +197,8 @@
     }
   ],
   "unverified_requirements": [
-    "Factoring approval requires broker information absent from the board."
+    "Factoring approval requires broker information absent from the board.",
+    "Weight capacity is absent from the transcript; ranked loads require confirmation."
   ],
   "notes": [
     "Geographic preferences are soft, not hard filters.",

@@ -273,7 +273,7 @@ def rank_loads(
         if actual_capacity is not None
         else "conditional"
         if capacity is not None
-        else "needs_capacity"
+        else "provisional_unknown_capacity"
     )
     current = city_coordinates(profile.current_location.value, loads)
     home = city_coordinates(profile.home_base.value, loads)
@@ -366,12 +366,12 @@ def rank_loads(
             result["status"] = "needs_capacity"
         if not reasons:
             if capacity is None:
-                result["status"] = "needs_capacity"
-                reasons.append("driver weight capacity not stated")
+                result["status"] = "provisional"
+                reasons.append(f"driver weight capacity not stated; confirm at least {weight:g} lb")
             else:
                 result["status"] = "conditional" if mode == "conditional" else "eligible"
         audit.append(result)
-    candidates = [r for r in audit if r["status"] in {"eligible", "conditional"}]
+    candidates = [r for r in audit if r["status"] in {"eligible", "conditional", "provisional"}]
     candidates.sort(key=lambda r: (-r["effective_rate_per_mile"], r["load_id"]))
     return {
         "mode": mode,
@@ -384,7 +384,14 @@ def rank_loads(
         "top_three": candidates[:3],
         "audit": audit,
         "unverified_requirements": [
-            "Factoring approval requires broker information absent from the board."
+            "Factoring approval requires broker information absent from the board.",
+            *(
+                [
+                    "Weight capacity is absent from the transcript; ranked loads require confirmation."
+                ]
+                if capacity is None
+                else []
+            ),
         ],
         "notes": [
             "Geographic preferences are soft, not hard filters.",
