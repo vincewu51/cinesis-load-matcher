@@ -1,9 +1,0 @@
-load_id,origin,destination,equipment,weight_lb,price_usd,status,deadhead_to_origin_miles,loaded_miles,deadhead_home_miles,total_miles,effective_rate_per_mile,reasons
-L01,Fort Worth,Oklahoma City,Van,42000.0,620.0,rejected,31.04818794830975,187.688676517612,421.42767511832096,640.1645395842427,0.9685010050738853,incompatible equipment; effective rate does not meet driver's minimum
-L02,Houston,Laredo,Hotshot,11500.0,1600.0,needs_capacity,224.79747102113302,292.9824980432208,143.89762845058294,661.6775975149368,2.4180960727839684,driver weight capacity not stated
-L03,Austin,Corpus Christi,Gooseneck,14200.0,1500.0,needs_capacity,182.1210847751361,171.70759573213186,130.42746154167708,484.25614204894504,3.0975342793863647,driver weight capacity not stated
-L04,Plano,Memphis,Van,38000.0,1500.0,rejected,17.734563242494453,407.88164558774713,631.8365389141951,1057.4527477444367,1.4185030992633227,incompatible equipment; effective rate does not meet driver's minimum
-L05,Waco,San Antonio,Flatbed,9800.0,640.0,rejected,87.23682382887866,167.30509125443092,0.0,254.54191508330956,2.51432067598978,incompatible equipment
-L06,Shreveport,Atlanta,Van,46500.0,MISSING,rejected,,,,,,missing or invalid price
-L07,Tulsa,MISSING,Hotshot,13400.0,1100.0,rejected,,,,,,missing Destination; missing or invalid destination latitude
-L08,Dallas,McAllen,Hotshot,12600.0,1700.0,needs_capacity,0.0,462.2590865024532,223.1111904032326,685.3702769056858,2.480411038067147,driver weight capacity not stated

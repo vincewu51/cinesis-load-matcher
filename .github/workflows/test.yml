@@ -15,6 +15,6 @@ jobs:
           python -m pip install uv==0.11.6
           uv sync --frozen --extra dev
       - run: uv run pytest -q
-      - run: uv run ruff check src tests scripts
-      - run: uv run ruff format --check src tests scripts
-      - run: uv run python scripts/check_secrets.py
+      - run: uv run ruff check solve.py workbook.py security.py test_solver.py
+      - run: uv run ruff format --check solve.py workbook.py security.py test_solver.py
+      - run: uv run python security.py --check

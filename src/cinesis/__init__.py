@@ -1,1 +1,0 @@
-"""Cinesis good-fit exercise."""

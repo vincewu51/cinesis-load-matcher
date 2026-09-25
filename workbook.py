@@ -38,11 +38,7 @@ def read_inputs(path: Path) -> tuple[list[dict], list[dict]]:
         rows = list(workbook["Loads"].iter_rows(max_col=10, values_only=True))
         if list(rows[0]) != HEADERS:
             raise ValueError("Unexpected Loads column headers")
-        loads = [
-            dict(zip(HEADERS, row))
-            for row in rows[1:]
-            if any(v is not None for v in row)
-        ]
+        loads = [dict(zip(HEADERS, row)) for row in rows[1:] if any(v is not None for v in row)]
         if not conversation or not loads:
             raise ValueError("Workbook has no conversation or loads")
         return conversation, loads
@@ -58,9 +54,7 @@ def transcript_hash(conversation: list[dict]) -> str:
 
 def normalize_city(name: str) -> str:
     return (
-        " ".join(name.lower().replace(",", " ").split())
-        .removesuffix(" texas")
-        .removesuffix(" tx")
+        " ".join(name.lower().replace(",", " ").split()).removesuffix(" texas").removesuffix(" tx")
     )
 
 
@@ -99,20 +93,14 @@ def fill_workbook(source: Path, target: Path, answers: dict[str, dict]) -> None:
             for r in ET.fromstring(archive.read("xl/_rels/workbook.xml.rels"))
         }
         replacements = {}
-        for sheet in ET.fromstring(archive.read("xl/workbook.xml")).find(
-            "m:sheets", ns
-        ):
+        for sheet in ET.fromstring(archive.read("xl/workbook.xml")).find("m:sheets", ns):
             if sheet.get("name") not in answers:
                 continue
             rel = sheet.get(
                 "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"
             )
             name = relationships[rel]
-            name = (
-                name.lstrip("/")
-                if name.startswith("/")
-                else posixpath.normpath("xl/" + name)
-            )
+            name = name.lstrip("/") if name.startswith("/") else posixpath.normpath("xl/" + name)
             root = ET.fromstring(archive.read(name))
             data = root.find("m:sheetData", ns)
             for address, value in answers[sheet.get("name")].items():
@@ -142,9 +130,7 @@ def fill_workbook(source: Path, target: Path, answers: dict[str, dict]) -> None:
                     )
                     text.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
                     text.text = str(value)
-            replacements[name] = ET.tostring(
-                root, encoding="utf-8", xml_declaration=True
-            )
+            replacements[name] = ET.tostring(root, encoding="utf-8", xml_declaration=True)
         if len(replacements) != len(answers):
             raise ValueError("Missing expected answer sheet")
         with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_DEFLATED) as output:
@@ -153,3 +139,74 @@ def fill_workbook(source: Path, target: Path, answers: dict[str, dict]) -> None:
                     entry,
                     replacements.get(entry.filename, archive.read(entry.filename)),
                 )
+
+
+def submission_note(result, repo_url, extraction_kind, profile):
+    source = (
+        "OpenAI structured extraction with quote validation"
+        if extraction_kind == "openai"
+        else "Manual test fixture"
+    )
+    capacity = (
+        "Capacity is unknown; eligibility is unresolved."
+        if result["capacity_lb"] is None
+        else f"Capacity: {result['capacity_lb']:g} lb ({result['capacity_source']})."
+    )
+    return (
+        f"Code: {repo_url or 'Public GitHub URL pending.'} {source}. {capacity} "
+        "An assumed capacity makes the ranking conditional, not confirmed. "
+        "Coordinates come from the board; haversine distance includes pickup, delivery, and the empty trip home. "
+        f"The minimum is {profile.minimum_rate.value.comparison}${profile.minimum_rate.value.dollars_per_mile:g}/mile. "
+        "Hotshot/Gooseneck are compatible; generic Flatbed is not assumed compatible. "
+        "Geography is a preference; factoring approval remains unverified. "
+        "Exclude L06 (missing price), L07 (missing destination), and high-paying L04 ($1,500; Van equipment and insufficient effective rate). "
+        "Rank at full precision and display three decimals. "
+        "The highest-paying L08 is not inherently ineligible; the workbook’s trap claim depends on unstated capacity."
+    )
+
+
+def write_outputs(source, output, profile, document, result, repo_url=None):
+    """Write one profile, one auditable ranking, and the completed workbook."""
+    output.mkdir(parents=True, exist_ok=True)
+    note = submission_note(result, repo_url, document["extraction"]["kind"], profile)
+    if len(note.split()) > 200:
+        raise ValueError("Workbook note exceeds 200 words")
+    a = dict(
+        zip(
+            ["B5", "B6", "B7", "B8", "B9", "B10", "B11", "B12", "B13"],
+            [
+                profile.current_location.value,
+                *result["current_coordinates"],
+                profile.home_base.value,
+                *result["home_coordinates"],
+                f"{profile.minimum_rate.value.comparison} ${profile.minimum_rate.value.dollars_per_mile:.2f}",
+                " / ".join(profile.equipment.value),
+                profile.weight_capacity_lb.value or "Unknown — not stated",
+            ],
+        )
+    )
+    a.update(
+        A16="Capacity assumption (not extracted)",
+        B16=result["capacity_lb"] if result["mode"] == "conditional" else "None",
+    )
+    label = (
+        f"CONDITIONAL: assumes {result['capacity_lb']:g} lb capacity."
+        if result["mode"] == "conditional"
+        else result["mode"]
+    )
+    b = {
+        "A2": label
+        + " Effective rate includes all three legs. Factoring approval remains unverified.",
+        "A10": note,
+    }
+    if document["extraction"]["kind"] != "openai":
+        a["A1"] = b["A1"] = "PREVIEW — test fixture, not live LLM output"
+    for i in range(3):
+        row = result["top_three"][i] if i < len(result["top_three"]) else None
+        b[f"B{i + 5}"] = row["load_id"] if row else "Not established"
+        b[f"C{i + 5}"] = f"{row['effective_rate_per_mile']:.3f}" if row else None
+    fill_workbook(source, output / "completed.xlsx", {"Part A (Fill In)": a, "Part B (Fill In)": b})
+    for name, data in [("profile", document), ("ranking", result)]:
+        (output / f"{name}.json").write_text(
+            json.dumps(data, indent=2, ensure_ascii=False, allow_nan=False) + "\n"
+        )

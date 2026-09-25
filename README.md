@@ -1,20 +1,50 @@
 # Cinesis load matcher
 
-Part A uses OpenAI structured outputs to extract a driver profile with exact transcript evidence. Part B validates loads, filters by equipment/weight/rate, and ranks using haversine miles across all three legs, including the empty trip home.
+## Problem
 
-**Capacity is absent from the transcript.** The default reports unresolved eligibility. An explicit 15,000 lb scenario produces **L03 (3.098), L08 (2.480), L02 (2.418)** dollars/mile; these are conditional, not confirmed offers. Geographic preferences remain soft. Factoring approval needs unavailable broker data. Generic Flatbed is not assumed compatible with Hotshot/Gooseneck. The floor is strictly above $2/mile.
+Extract driver requirements and rank three eligible loads:
 
-L06 lacks price; L07 lacks destination. Both are excluded. L04 pays $1,500 but requires Van equipment and fails the rate floor. L08, the highest-paying load, is not automatically ineligible; the workbook's trap claim cannot be established without capacity.
+`effective $/mile = price / (Dallas → pickup + pickup → delivery + delivery → San Antonio)`
+
+## Solution
+
+OpenAI extracts fields with quotes. Python validates evidence, uses board coordinates and haversine miles, then filters equipment, weight, and rate before ranking.
+
+Capacity is **unknown**; results assume **15,000 lb**. Geography is a preference; factoring approval remains unverified. Exclude generic Flatbed. L06/L07 lack data; high-paying L04 requires Van equipment and fails the rate floor.
+
+## Check results
+
+| Rank | Load | $/mile |
+|---|---|---:|
+| 1 | L03 | 3.098 |
+| 2 | L08 | 2.480 |
+| 3 | L02 | 2.418 |
+
+Inspect the [completed workbook](results/completed.xlsx), [live extraction/evidence](results/profile.json), and [distances/rejection reasons](results/ranking.json).
+
+## Reproduce
+
+Requires Python 3.11+/uv:
 
 ```sh
 uv sync --extra dev
-python scripts/set_api_key.py
-uv run cinesis solve --assumed-capacity-lb 15000
-uv run pytest
+uv run python solve.py --assumed-capacity-lb 15000
+uv run pytest -q
 ```
 
-The hidden prompt saves an owner-only, Git-ignored `.env`; never paste keys into code or commands. Generated files live in ignored `outputs/`.
+Replays the saved profile without API calls into `outputs/`. Omit capacity for unresolved eligibility.
 
-See [usage and publication](docs/usage.md), [design](docs/design.md), and the generated `outputs/submission-note.md` for the workbook note.
+For fresh extraction:
 
-[Live results and completed workbooks](submission/README.md) are available for review.
+```sh
+uv run python security.py --set-key
+uv run python solve.py --refresh --assumed-capacity-lb 15000
+```
+
+Keys stay in owner-only, Git-ignored `.env`. Before publishing:
+
+```sh
+uv run python security.py --check
+```
+
+Add `--repo-url YOUR_PUBLIC_GITHUB_URL` for submission.
