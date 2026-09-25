@@ -16,3 +16,5 @@ uv run pytest
 The hidden prompt saves an owner-only, Git-ignored `.env`; never paste keys into code or commands. Generated files live in ignored `outputs/`.
 
 See [usage and publication](docs/usage.md), [design](docs/design.md), and the generated `outputs/submission-note.md` for the workbook note.
+
+[Live results and completed workbooks](submission/README.md) are available for review.

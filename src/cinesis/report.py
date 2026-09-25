@@ -72,7 +72,7 @@ def write_outputs(
         "reasons",
     ]
     with (output / "load-audit.csv").open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=columns)
+        writer = csv.DictWriter(f, fieldnames=columns, lineterminator="\n")
         writer.writeheader()
         for row in result["audit"]:
             record = {**row, "reasons": "; ".join(row["reasons"])}

@@ -1,0 +1,203 @@
+{
+  "mode": "conditional",
+  "capacity_lb": 15000.0,
+  "capacity_source": "explicit_assumption",
+  "current_coordinates": [
+    32.7767,
+    -96.797
+  ],
+  "home_coordinates": [
+    29.4241,
+    -98.4936
+  ],
+  "earth_radius_miles": 3958.7613,
+  "top_three": [
+    {
+      "load_id": "L03",
+      "origin": "Austin",
+      "destination": "Corpus Christi",
+      "equipment": "Gooseneck",
+      "weight_lb": 14200.0,
+      "price_usd": 1500.0,
+      "status": "conditional",
+      "reasons": [],
+      "deadhead_to_origin_miles": 182.1210847751361,
+      "loaded_miles": 171.70759573213186,
+      "deadhead_home_miles": 130.42746154167708,
+      "total_miles": 484.25614204894504,
+      "effective_rate_per_mile": 3.0975342793863647
+    },
+    {
+      "load_id": "L08",
+      "origin": "Dallas",
+      "destination": "McAllen",
+      "equipment": "Hotshot",
+      "weight_lb": 12600.0,
+      "price_usd": 1700.0,
+      "status": "conditional",
+      "reasons": [],
+      "deadhead_to_origin_miles": 0.0,
+      "loaded_miles": 462.2590865024532,
+      "deadhead_home_miles": 223.1111904032326,
+      "total_miles": 685.3702769056858,
+      "effective_rate_per_mile": 2.480411038067147
+    },
+    {
+      "load_id": "L02",
+      "origin": "Houston",
+      "destination": "Laredo",
+      "equipment": "Hotshot",
+      "weight_lb": 11500.0,
+      "price_usd": 1600.0,
+      "status": "conditional",
+      "reasons": [],
+      "deadhead_to_origin_miles": 224.79747102113302,
+      "loaded_miles": 292.9824980432208,
+      "deadhead_home_miles": 143.89762845058294,
+      "total_miles": 661.6775975149368,
+      "effective_rate_per_mile": 2.4180960727839684
+    }
+  ],
+  "audit": [
+    {
+      "load_id": "L01",
+      "origin": "Fort Worth",
+      "destination": "Oklahoma City",
+      "equipment": "Van",
+      "weight_lb": 42000.0,
+      "price_usd": 620.0,
+      "status": "rejected",
+      "reasons": [
+        "incompatible equipment",
+        "weight exceeds 15000 lb capacity",
+        "effective rate does not meet driver's minimum"
+      ],
+      "deadhead_to_origin_miles": 31.04818794830975,
+      "loaded_miles": 187.688676517612,
+      "deadhead_home_miles": 421.42767511832096,
+      "total_miles": 640.1645395842427,
+      "effective_rate_per_mile": 0.9685010050738853
+    },
+    {
+      "load_id": "L02",
+      "origin": "Houston",
+      "destination": "Laredo",
+      "equipment": "Hotshot",
+      "weight_lb": 11500.0,
+      "price_usd": 1600.0,
+      "status": "conditional",
+      "reasons": [],
+      "deadhead_to_origin_miles": 224.79747102113302,
+      "loaded_miles": 292.9824980432208,
+      "deadhead_home_miles": 143.89762845058294,
+      "total_miles": 661.6775975149368,
+      "effective_rate_per_mile": 2.4180960727839684
+    },
+    {
+      "load_id": "L03",
+      "origin": "Austin",
+      "destination": "Corpus Christi",
+      "equipment": "Gooseneck",
+      "weight_lb": 14200.0,
+      "price_usd": 1500.0,
+      "status": "conditional",
+      "reasons": [],
+      "deadhead_to_origin_miles": 182.1210847751361,
+      "loaded_miles": 171.70759573213186,
+      "deadhead_home_miles": 130.42746154167708,
+      "total_miles": 484.25614204894504,
+      "effective_rate_per_mile": 3.0975342793863647
+    },
+    {
+      "load_id": "L04",
+      "origin": "Plano",
+      "destination": "Memphis",
+      "equipment": "Van",
+      "weight_lb": 38000.0,
+      "price_usd": 1500.0,
+      "status": "rejected",
+      "reasons": [
+        "incompatible equipment",
+        "weight exceeds 15000 lb capacity",
+        "effective rate does not meet driver's minimum"
+      ],
+      "deadhead_to_origin_miles": 17.734563242494453,
+      "loaded_miles": 407.88164558774713,
+      "deadhead_home_miles": 631.8365389141951,
+      "total_miles": 1057.4527477444367,
+      "effective_rate_per_mile": 1.4185030992633227
+    },
+    {
+      "load_id": "L05",
+      "origin": "Waco",
+      "destination": "San Antonio",
+      "equipment": "Flatbed",
+      "weight_lb": 9800.0,
+      "price_usd": 640.0,
+      "status": "rejected",
+      "reasons": [
+        "incompatible equipment"
+      ],
+      "deadhead_to_origin_miles": 87.23682382887866,
+      "loaded_miles": 167.30509125443092,
+      "deadhead_home_miles": 0.0,
+      "total_miles": 254.54191508330956,
+      "effective_rate_per_mile": 2.51432067598978
+    },
+    {
+      "load_id": "L06",
+      "origin": "Shreveport",
+      "destination": "Atlanta",
+      "equipment": "Van",
+      "weight_lb": 46500.0,
+      "price_usd": "MISSING",
+      "status": "rejected",
+      "reasons": [
+        "missing or invalid price"
+      ]
+    },
+    {
+      "load_id": "L07",
+      "origin": "Tulsa",
+      "destination": "MISSING",
+      "equipment": "Hotshot",
+      "weight_lb": 13400.0,
+      "price_usd": 1100.0,
+      "status": "rejected",
+      "reasons": [
+        "missing Destination",
+        "missing or invalid destination latitude"
+      ]
+    },
+    {
+      "load_id": "L08",
+      "origin": "Dallas",
+      "destination": "McAllen",
+      "equipment": "Hotshot",
+      "weight_lb": 12600.0,
+      "price_usd": 1700.0,
+      "status": "conditional",
+      "reasons": [],
+      "deadhead_to_origin_miles": 0.0,
+      "loaded_miles": 462.2590865024532,
+      "deadhead_home_miles": 223.1111904032326,
+      "total_miles": 685.3702769056858,
+      "effective_rate_per_mile": 2.480411038067147
+    }
+  ],
+  "unverified_requirements": [
+    "Factoring approval requires broker information absent from the board."
+  ],
+  "notes": [
+    "Geographic preferences are soft, not hard filters.",
+    "Generic Flatbed is not assumed compatible with Hotshot/Gooseneck.",
+    "No road routing or driving-time estimates are used."
+  ],
+  "extraction": {
+    "kind": "openai",
+    "model": "gpt-6-astra",
+    "prompt_sha256": "93852af7bea13fed4b5fc061ba04509c6b3d3c3934735352e34ff3c3a54fae2f",
+    "created_at": "2026-09-25T20:44:47.773106+00:00"
+  },
+  "transcript_sha256": "d29c787fbd90147c78215feed35b5c0d7a5a053a765dff0c1fed8c9ee805d270"
+}
