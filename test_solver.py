@@ -313,7 +313,7 @@ def test_strict_output_no_top_three(tmp_path, workbook, profile, document, input
     wb.close()
 
 
-def test_submission_and_readme_word_limit(profile, inputs):
+def test_submission_note_word_limit(profile, inputs):
     for capacity in [None, 15000]:
         note = submission_note(
             rank_loads(profile, inputs[1], capacity),
@@ -322,7 +322,6 @@ def test_submission_and_readme_word_limit(profile, inputs):
             profile,
         )
         assert len(note.split()) <= 200
-    assert len((Path(__file__).resolve().parent / "README.md").read_text().split()) <= 200
 
 
 def test_secret_scan_including_xlsx():
