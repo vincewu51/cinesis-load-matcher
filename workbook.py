@@ -122,7 +122,7 @@ def fill_workbook(source: Path, target: Path, answers: dict[str, dict]) -> None:
                     cell.set("s", paragraph.get("s", "0"))
                     for answer_row in data:
                         if 11 <= int(answer_row.get("r")) <= 14:
-                            answer_row.set("ht", "45")
+                            answer_row.set("ht", "60")
                             answer_row.set("customHeight", "1")
                 for child in list(cell):
                     cell.remove(child)
@@ -150,32 +150,39 @@ def fill_workbook(source: Path, target: Path, answers: dict[str, dict]) -> None:
 
 
 def submission_note(result, repo_url, extraction_kind, profile):
-    source = (
-        "OpenAI structured extraction with quote validation"
+    extraction = (
+        "One OpenAI call reads the full transcript and returns structured fields with quotes and row references. Python validates types and checks each quote against its source."
         if extraction_kind == "openai"
-        else "Manual test fixture"
-    )
-    capacity = (
-        "Capacity is unknown; eligibility is unresolved."
-        if result["capacity_lb"] is None
-        else f"Capacity: {result['capacity_lb']:g} lb ({result['capacity_source']})."
+        else "Manual test fixture; no live LLM extraction."
     )
     if result["capacity_source"] == "catalog_minimum":
-        estimate = result["capacity_estimate"]
-        capacity += (
-            f" Sample minimum, not a guaranteed truck limit. Source: {estimate['source_url']}"
+        capacity = (
+            f"Capacity unstated; {result['capacity_lb']:,.0f} lb is a catalog estimate, not a guaranteed truck limit. "
+            f"Source: {result['capacity_estimate']['source_url']}"
         )
-    return (
-        f"Code: {repo_url or 'Public GitHub URL pending.'} {source}. {capacity} "
-        "An assumed capacity makes the ranking conditional, not confirmed. "
-        "Coordinates come from the board; haversine distance includes pickup, delivery, and the empty trip home. "
-        f"The minimum is {profile.minimum_rate.value.comparison}${profile.minimum_rate.value.dollars_per_mile:g}/mile. "
-        "Hotshot/Gooseneck are compatible; generic Flatbed is not assumed compatible. "
-        "Geography is a preference; factoring approval remains unverified. "
-        "Exclude L06 (missing price), L07 (missing destination), and high-paying L04 ($1,500; Van equipment and insufficient effective rate). "
-        "Rank at full precision and display three decimals. "
-        "The highest-paying L08 is not inherently ineligible; the workbook’s trap claim depends on unstated capacity."
-    )
+    elif result["capacity_source"] == "explicit_assumption":
+        capacity = (
+            f"Capacity unstated; this scenario assumes {result['capacity_lb']:,.0f} lb. "
+            "Recommendations require capacity confirmation."
+        )
+    elif result["capacity_lb"] is not None:
+        capacity = f"Use the stated {result['capacity_lb']:,.0f} lb capacity."
+    else:
+        capacity = (
+            "Capacity unstated; weight eligibility and the final top three remain unresolved."
+        )
+    minimum = profile.minimum_rate.value
+    sections = [
+        f"Code: {repo_url or 'Public GitHub URL pending.'}",
+        f"1. Extraction: {extraction}",
+        "2. Ranking: Use board coordinates and haversine miles for current location → pickup → delivery → home. "
+        "Effective rate = price / total miles. "
+        f"Filter equipment, weight, and rate {minimum.comparison} ${minimum.dollars_per_mile:g}/mile before sorting; display three decimals.",
+        f"3. Assumptions: {capacity} Geography is a preference. Generic Flatbed compatibility and broker factoring approval are unconfirmed.",
+        "4. Incomplete data: Exclude L06 (missing price) and L07 (missing destination); do not substitute zeros.",
+        "5. Rejected example: L04 pays $1,500 but requires Van equipment, which does not match this driver's Hotshot/Gooseneck. Its $1.419 effective rate also falls below the $2 minimum.",
+    ]
+    return "\n\n".join(sections)
 
 
 def write_outputs(source, output, profile, document, result, repo_url=None):
