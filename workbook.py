@@ -116,6 +116,14 @@ def fill_workbook(source: Path, target: Path, answers: dict[str, dict]) -> None:
                 cell = next((c for c in row if c.get("r") == address), None)
                 if cell is None:
                     cell = ET.SubElement(row, f"{{{namespace}}}c", {"r": address})
+                if sheet.get("name") == "Part B (Fill In)" and address == "A11":
+                    # Reuse the template's wrapped paragraph style and give the merged answer room.
+                    paragraph = root.find(".//m:c[@r='A10']", ns)
+                    cell.set("s", paragraph.get("s", "0"))
+                    for answer_row in data:
+                        if 11 <= int(answer_row.get("r")) <= 14:
+                            answer_row.set("ht", "45")
+                            answer_row.set("customHeight", "1")
                 for child in list(cell):
                     cell.remove(child)
                 cell.attrib.pop("t", None)

@@ -302,6 +302,7 @@ def test_workbook_answers_and_preservation(tmp_path, workbook, profile, document
     assert "CONDITIONAL" in wb["Part B (Fill In)"]["A2"].value
     assert "test fixture" in wb["Part B (Fill In)"]["A11"].value
     assert wb["Part B (Fill In)"]["A10"].value.startswith("Paste a link to your code")
+    assert wb["Part B (Fill In)"]["A11"].alignment.wrap_text is True
     wb.close()
 
 
