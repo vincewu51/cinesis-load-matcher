@@ -32,7 +32,7 @@ uv run python solve.py --assumed-capacity-lb 15000
 uv run pytest -q
 ```
 
-Replays the saved profile without API calls into `outputs/`. Omit capacity for unresolved eligibility.
+Replays the saved profile without API calls into `outputs/`. Omit capacity for unresolved eligibility, or add `--capacity-from-catalog` for an estimated fallback.
 
 For fresh extraction:
 
@@ -73,7 +73,7 @@ Save the profile with its model, timestamp, prompt hash, and transcript hash. No
 
 The dispatcher mentions a **44,000 lb load**, but the driver never states a payload capacity. The extracted capacity therefore stays unknown. **15,000 lb is an explicit scenario assumption**, not a fact inferred from the trailer type.
 
-`--assumed-capacity-lb 15000` enables a conditional ranking without modifying the extracted profile. Without it, otherwise suitable loads remain unresolved. A stated capacity cannot be overridden by this assumption. Geographic preferences remain soft; broker factoring approval cannot be checked from the available columns.
+`--assumed-capacity-lb 15000` enables a conditional ranking without modifying the extracted profile. Without a capacity option, otherwise suitable loads remain unresolved. Alternatively, `--capacity-from-catalog` uses the lowest matching reference capacity as an estimate. A stated capacity takes precedence over catalog estimates and cannot be overridden by an explicit assumption. Geographic preferences remain soft; broker factoring approval cannot be checked from the available columns.
 
 ### 5. Filter and rank — `solve.py`
 
@@ -86,3 +86,18 @@ Calculate haversine distance for Dallas → pickup, pickup → delivery, and del
 `workbook.py` writes `profile.json`, `ranking.json` (including distances and rejection reasons), and `completed.xlsx`. Only the two answer sheets are changed; the original workbook and other embedded content are preserved. The workbook identifies the capacity assumption and includes a submission note of at most 200 words.
 
 `security.py` saves the API key through a hidden prompt into an owner-only, Git-ignored `.env`. Its pre-publication check scans staged files, including Excel contents, without printing matched secrets. `test_solver.py` checks extraction handling, filtering, calculations, and workbook preservation without making live API calls.
+
+
+### 7. Estimate missing capacity from a small catalog
+
+[data/truck-capacities.json](data/truck-capacities.json) is a source-backed US equipment sample: five Big Tex gooseneck model families and four U-Haul box-truck sizes. Each record stores its payload range, source URL, and review date. Van, Reefer, and generic Flatbed are explicitly unresolved rather than assigned invented numbers. This is a starter catalog, not a complete US fleet database.
+
+```sh
+uv run python solve.py --capacity-from-catalog --output outputs/catalog
+```
+
+When extracted capacity is unknown, match the equipment labels and select the smallest published payload lower endpoint among matching records. Keep the driver's extracted capacity as `null`; record the estimate, selected record, source URL, and catalog hash separately in `ranking.json` and label the workbook conditional. Stated capacity takes precedence. Explicit capacity and catalog flags are mutually exclusive.
+
+For Hotshot/Gooseneck, the current sample minimum is **8,710 lb**, from [Big Tex 14GN](https://www.bigtextrailers.com/trailer/14gn/). This is the minimum in our sample, **not a guaranteed lower bound for every truck**. Actual available payload also depends on the tow vehicle, hitch, configuration, and existing load; [Ford's guide](https://www.ford.com/towing/) explains these distinctions. Loads above an estimated capacity require clarification rather than being declared definitively overweight. For this conversation, all three otherwise suitable loads exceed 8,710 lb, so this mode produces no ranked offers. The saved results retain the explicit 15,000 lb scenario.
+
+Conflicting source data blocks the affected class estimate. For example, [U-Haul's 10ft page](https://www.uhaul.com/Truck-Rentals/10ft-Moving-Truck/) lists a 2,850 lb maximum load, but its listed gross and empty weights differ by 2,810 lb. The record is marked excluded, and the broad Box Truck fallback remains unresolved; simply deleting that smaller model would misleadingly raise the class minimum. Uncovered equipment also stays unknown. Update reviewed records in the JSON file as coverage improves; the LLM never invents catalog capacities.

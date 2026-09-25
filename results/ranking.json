@@ -2,6 +2,7 @@
   "mode": "conditional",
   "capacity_lb": 15000.0,
   "capacity_source": "explicit_assumption",
+  "capacity_estimate": null,
   "current_coordinates": [
     32.7767,
     -96.797

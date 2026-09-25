@@ -152,6 +152,11 @@ def submission_note(result, repo_url, extraction_kind, profile):
         if result["capacity_lb"] is None
         else f"Capacity: {result['capacity_lb']:g} lb ({result['capacity_source']})."
     )
+    if result["capacity_source"] == "catalog_minimum":
+        estimate = result["capacity_estimate"]
+        capacity += (
+            f" Sample minimum, not a guaranteed truck limit. Source: {estimate['source_url']}"
+        )
     return (
         f"Code: {repo_url or 'Public GitHub URL pending.'} {source}. {capacity} "
         "An assumed capacity makes the ranking conditional, not confirmed. "
@@ -186,7 +191,9 @@ def write_outputs(source, output, profile, document, result, repo_url=None):
         )
     )
     a.update(
-        A16="Capacity assumption (not extracted)",
+        A16="Catalog estimate (not confirmed)"
+        if result["capacity_source"] == "catalog_minimum"
+        else "Capacity assumption (not extracted)",
         B16=result["capacity_lb"] if result["mode"] == "conditional" else "None",
     )
     label = (
