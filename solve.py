@@ -189,7 +189,13 @@ def number(value, label: str, *, positive: bool = False) -> float:
 
 
 def rank_loads(profile: DriverProfile, loads: list[dict]) -> dict:
-    for field in ["current_location", "home_base", "equipment", "minimum_rate"]:
+    """Rank complete loads using pass/fail/unknown checks for every hard constraint.
+
+    A known failure takes precedence over unknown checks. Unknown checks keep a
+    load in the ranking as provisional, with explicit confirmation questions.
+    """
+    # Locations are calculation inputs: without them, effective rate is undefined.
+    for field in ["current_location", "home_base"]:
         if not getattr(profile, field).value:
             raise ValueError(f"Clarification required: {field}")
     actual_capacity = profile.weight_capacity_lb.value
@@ -199,10 +205,16 @@ def rank_loads(profile: DriverProfile, loads: list[dict]) -> dict:
         else None
     )
     capacity_source = "transcript" if capacity is not None else "unknown"
-    mode = "verified_capacity" if capacity is not None else "provisional_unknown_capacity"
     current = city_coordinates(profile.current_location.value, loads)
     home = city_coordinates(profile.home_base.value, loads)
-    equipment = {e.casefold() for e in profile.equipment.value}
+    equipment = {e.casefold() for e in (profile.equipment.value or [])}
+    minimum = profile.minimum_rate.value
+
+    def check(passed: bool | None, explanation: str) -> dict:
+        # None means there is not enough evidence to decide, rather than failure.
+        state = "unknown" if passed is None else "pass" if passed else "fail"
+        return {"status": state, "explanation": explanation}
+
     duplicates = {
         key for key, count in Counter(str(row.get("Load ID")) for row in loads).items() if count > 1
     }
@@ -217,8 +229,11 @@ def rank_loads(profile: DriverProfile, loads: list[dict]) -> dict:
             "price_usd": row.get("Price ($)"),
             "status": "rejected",
             "reasons": [],
+            "checks": {},
+            "pending_confirmations": [],
         }
         reasons = result["reasons"]
+        # Missing critical load data is excluded, even if driver filters are unknown.
         for name in ["Load ID", "Origin", "Destination", "Trailer"]:
             if row.get(name) is None or str(row[name]).strip().casefold() in {
                 "",
@@ -251,10 +266,7 @@ def rank_loads(profile: DriverProfile, loads: list[dict]) -> dict:
             audit.append(result)
             continue
         result.update(price_usd=price, weight_lb=weight)
-        if str(row["Trailer"]).strip().casefold() not in equipment:
-            reasons.append("incompatible equipment")
-        if capacity is not None and weight > capacity:
-            reasons.append(f"weight exceeds {capacity:g} lb capacity")
+        # Calculate all three legs before checking the driver's rate threshold.
         legs = (
             haversine(current, origin),
             haversine(origin, dest),
@@ -269,28 +281,82 @@ def rank_loads(profile: DriverProfile, loads: list[dict]) -> dict:
         )
         if total <= 0:
             reasons.append("zero total trip distance")
+            audit.append(result)
+            continue
+        rpm = price / total
+        result["effective_rate_per_mile"] = rpm
+
+        # Each filter independently reports pass, fail, or unknown. Add future
+        # filters here; status aggregation below does not depend on filter names.
+        checks = result["checks"]
+        if not equipment:
+            checks["equipment"] = check(
+                None, f"driver equipment not stated; confirm compatibility with {row['Trailer']}"
+            )
         else:
-            rpm = price / total
-            result["effective_rate_per_mile"] = rpm
-            minimum = profile.minimum_rate.value
+            matches = str(row["Trailer"]).strip().casefold() in equipment
+            checks["equipment"] = check(
+                matches, "equipment matches" if matches else "incompatible equipment"
+            )
+
+        if capacity is None:
+            checks["capacity"] = check(
+                None, f"driver weight capacity not stated; confirm at least {weight:g} lb"
+            )
+        else:
+            within_capacity = weight <= capacity
+            checks["capacity"] = check(
+                within_capacity,
+                "weight within capacity"
+                if within_capacity
+                else f"weight exceeds {capacity:g} lb capacity",
+            )
+
+        if minimum is None:
+            checks["minimum_rate"] = check(
+                None, "driver minimum rate not stated; confirm acceptable effective rate"
+            )
+        else:
             meets_rate = (
                 rpm > minimum.dollars_per_mile
                 if minimum.comparison == ">"
                 else rpm >= minimum.dollars_per_mile
             )
-            if not meets_rate:
-                reasons.append("effective rate does not meet driver's minimum")
-        if not reasons:
-            if capacity is None:
-                result["status"] = "provisional"
-                reasons.append(f"driver weight capacity not stated; confirm at least {weight:g} lb")
-            else:
-                result["status"] = "eligible"
+            checks["minimum_rate"] = check(
+                meets_rate,
+                "effective rate meets minimum"
+                if meets_rate
+                else "effective rate does not meet driver's minimum",
+            )
+
+        # The board has no broker approval data. Known capacity alone therefore
+        # cannot make a load fully eligible. Keep the missing approval explicit.
+        checks["factoring"] = check(
+            None,
+            "confirm broker approval with the driver's factoring company"
+            if profile.factoring_requirement.value
+            else "driver factoring requirement not stated; confirm requirement and broker approval",
+        )
+
+        # Reject on any known failure; otherwise retain unknowns as provisional.
+        checks = result["checks"].values()
+        failures = [c["explanation"] for c in checks if c["status"] == "fail"]
+        pending = [c["explanation"] for c in checks if c["status"] == "unknown"]
+        result["pending_confirmations"] = pending
+        result["reasons"] = failures or pending
+        if failures:
+            result["status"] = "rejected"
+        elif pending:
+            result["status"] = "provisional"
+        else:
+            result["status"] = "eligible"
         audit.append(result)
     candidates = [r for r in audit if r["status"] in {"eligible", "provisional"}]
+    # Rank both eligible and provisional options by the same full-precision metric.
     candidates.sort(key=lambda r: (-r["effective_rate_per_mile"], r["load_id"]))
+    pending = sorted({question for row in candidates for question in row["pending_confirmations"]})
     return {
-        "mode": mode,
+        "mode": "no_candidates" if not candidates else "provisional" if pending else "eligible",
         "capacity_lb": capacity,
         "capacity_source": capacity_source,
         "current_coordinates": current,
@@ -298,16 +364,7 @@ def rank_loads(profile: DriverProfile, loads: list[dict]) -> dict:
         "earth_radius_miles": EARTH_RADIUS_MILES,
         "top_three": candidates[:3],
         "audit": audit,
-        "unverified_requirements": [
-            "Factoring approval requires broker information absent from the board.",
-            *(
-                [
-                    "Weight capacity is absent from the transcript; ranked loads require confirmation."
-                ]
-                if capacity is None
-                else []
-            ),
-        ],
+        "unverified_requirements": pending,
         "notes": [
             "Geographic preferences are soft, not hard filters.",
             "Generic Flatbed is not assumed compatible with Hotshot/Gooseneck.",

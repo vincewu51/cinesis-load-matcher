@@ -1,5 +1,5 @@
 {
-  "mode": "provisional_unknown_capacity",
+  "mode": "provisional",
   "capacity_lb": null,
   "capacity_source": "unknown",
   "current_coordinates": [
@@ -21,7 +21,30 @@
       "price_usd": 1500.0,
       "status": "provisional",
       "reasons": [
-        "driver weight capacity not stated; confirm at least 14200 lb"
+        "driver weight capacity not stated; confirm at least 14200 lb",
+        "confirm broker approval with the driver's factoring company"
+      ],
+      "checks": {
+        "equipment": {
+          "status": "pass",
+          "explanation": "equipment matches"
+        },
+        "capacity": {
+          "status": "unknown",
+          "explanation": "driver weight capacity not stated; confirm at least 14200 lb"
+        },
+        "minimum_rate": {
+          "status": "pass",
+          "explanation": "effective rate meets minimum"
+        },
+        "factoring": {
+          "status": "unknown",
+          "explanation": "confirm broker approval with the driver's factoring company"
+        }
+      },
+      "pending_confirmations": [
+        "driver weight capacity not stated; confirm at least 14200 lb",
+        "confirm broker approval with the driver's factoring company"
       ],
       "deadhead_to_origin_miles": 182.1210847751361,
       "loaded_miles": 171.70759573213186,
@@ -38,7 +61,30 @@
       "price_usd": 1700.0,
       "status": "provisional",
       "reasons": [
-        "driver weight capacity not stated; confirm at least 12600 lb"
+        "driver weight capacity not stated; confirm at least 12600 lb",
+        "confirm broker approval with the driver's factoring company"
+      ],
+      "checks": {
+        "equipment": {
+          "status": "pass",
+          "explanation": "equipment matches"
+        },
+        "capacity": {
+          "status": "unknown",
+          "explanation": "driver weight capacity not stated; confirm at least 12600 lb"
+        },
+        "minimum_rate": {
+          "status": "pass",
+          "explanation": "effective rate meets minimum"
+        },
+        "factoring": {
+          "status": "unknown",
+          "explanation": "confirm broker approval with the driver's factoring company"
+        }
+      },
+      "pending_confirmations": [
+        "driver weight capacity not stated; confirm at least 12600 lb",
+        "confirm broker approval with the driver's factoring company"
       ],
       "deadhead_to_origin_miles": 0.0,
       "loaded_miles": 462.2590865024532,
@@ -55,7 +101,30 @@
       "price_usd": 1600.0,
       "status": "provisional",
       "reasons": [
-        "driver weight capacity not stated; confirm at least 11500 lb"
+        "driver weight capacity not stated; confirm at least 11500 lb",
+        "confirm broker approval with the driver's factoring company"
+      ],
+      "checks": {
+        "equipment": {
+          "status": "pass",
+          "explanation": "equipment matches"
+        },
+        "capacity": {
+          "status": "unknown",
+          "explanation": "driver weight capacity not stated; confirm at least 11500 lb"
+        },
+        "minimum_rate": {
+          "status": "pass",
+          "explanation": "effective rate meets minimum"
+        },
+        "factoring": {
+          "status": "unknown",
+          "explanation": "confirm broker approval with the driver's factoring company"
+        }
+      },
+      "pending_confirmations": [
+        "driver weight capacity not stated; confirm at least 11500 lb",
+        "confirm broker approval with the driver's factoring company"
       ],
       "deadhead_to_origin_miles": 224.79747102113302,
       "loaded_miles": 292.9824980432208,
@@ -77,6 +146,28 @@
         "incompatible equipment",
         "effective rate does not meet driver's minimum"
       ],
+      "checks": {
+        "equipment": {
+          "status": "fail",
+          "explanation": "incompatible equipment"
+        },
+        "capacity": {
+          "status": "unknown",
+          "explanation": "driver weight capacity not stated; confirm at least 42000 lb"
+        },
+        "minimum_rate": {
+          "status": "fail",
+          "explanation": "effective rate does not meet driver's minimum"
+        },
+        "factoring": {
+          "status": "unknown",
+          "explanation": "confirm broker approval with the driver's factoring company"
+        }
+      },
+      "pending_confirmations": [
+        "driver weight capacity not stated; confirm at least 42000 lb",
+        "confirm broker approval with the driver's factoring company"
+      ],
       "deadhead_to_origin_miles": 31.04818794830975,
       "loaded_miles": 187.688676517612,
       "deadhead_home_miles": 421.42767511832096,
@@ -92,7 +183,30 @@
       "price_usd": 1600.0,
       "status": "provisional",
       "reasons": [
-        "driver weight capacity not stated; confirm at least 11500 lb"
+        "driver weight capacity not stated; confirm at least 11500 lb",
+        "confirm broker approval with the driver's factoring company"
+      ],
+      "checks": {
+        "equipment": {
+          "status": "pass",
+          "explanation": "equipment matches"
+        },
+        "capacity": {
+          "status": "unknown",
+          "explanation": "driver weight capacity not stated; confirm at least 11500 lb"
+        },
+        "minimum_rate": {
+          "status": "pass",
+          "explanation": "effective rate meets minimum"
+        },
+        "factoring": {
+          "status": "unknown",
+          "explanation": "confirm broker approval with the driver's factoring company"
+        }
+      },
+      "pending_confirmations": [
+        "driver weight capacity not stated; confirm at least 11500 lb",
+        "confirm broker approval with the driver's factoring company"
       ],
       "deadhead_to_origin_miles": 224.79747102113302,
       "loaded_miles": 292.9824980432208,
@@ -109,7 +223,30 @@
       "price_usd": 1500.0,
       "status": "provisional",
       "reasons": [
-        "driver weight capacity not stated; confirm at least 14200 lb"
+        "driver weight capacity not stated; confirm at least 14200 lb",
+        "confirm broker approval with the driver's factoring company"
+      ],
+      "checks": {
+        "equipment": {
+          "status": "pass",
+          "explanation": "equipment matches"
+        },
+        "capacity": {
+          "status": "unknown",
+          "explanation": "driver weight capacity not stated; confirm at least 14200 lb"
+        },
+        "minimum_rate": {
+          "status": "pass",
+          "explanation": "effective rate meets minimum"
+        },
+        "factoring": {
+          "status": "unknown",
+          "explanation": "confirm broker approval with the driver's factoring company"
+        }
+      },
+      "pending_confirmations": [
+        "driver weight capacity not stated; confirm at least 14200 lb",
+        "confirm broker approval with the driver's factoring company"
       ],
       "deadhead_to_origin_miles": 182.1210847751361,
       "loaded_miles": 171.70759573213186,
@@ -129,6 +266,28 @@
         "incompatible equipment",
         "effective rate does not meet driver's minimum"
       ],
+      "checks": {
+        "equipment": {
+          "status": "fail",
+          "explanation": "incompatible equipment"
+        },
+        "capacity": {
+          "status": "unknown",
+          "explanation": "driver weight capacity not stated; confirm at least 38000 lb"
+        },
+        "minimum_rate": {
+          "status": "fail",
+          "explanation": "effective rate does not meet driver's minimum"
+        },
+        "factoring": {
+          "status": "unknown",
+          "explanation": "confirm broker approval with the driver's factoring company"
+        }
+      },
+      "pending_confirmations": [
+        "driver weight capacity not stated; confirm at least 38000 lb",
+        "confirm broker approval with the driver's factoring company"
+      ],
       "deadhead_to_origin_miles": 17.734563242494453,
       "loaded_miles": 407.88164558774713,
       "deadhead_home_miles": 631.8365389141951,
@@ -146,6 +305,28 @@
       "reasons": [
         "incompatible equipment"
       ],
+      "checks": {
+        "equipment": {
+          "status": "fail",
+          "explanation": "incompatible equipment"
+        },
+        "capacity": {
+          "status": "unknown",
+          "explanation": "driver weight capacity not stated; confirm at least 9800 lb"
+        },
+        "minimum_rate": {
+          "status": "pass",
+          "explanation": "effective rate meets minimum"
+        },
+        "factoring": {
+          "status": "unknown",
+          "explanation": "confirm broker approval with the driver's factoring company"
+        }
+      },
+      "pending_confirmations": [
+        "driver weight capacity not stated; confirm at least 9800 lb",
+        "confirm broker approval with the driver's factoring company"
+      ],
       "deadhead_to_origin_miles": 87.23682382887866,
       "loaded_miles": 167.30509125443092,
       "deadhead_home_miles": 0.0,
@@ -162,7 +343,9 @@
       "status": "rejected",
       "reasons": [
         "missing or invalid price"
-      ]
+      ],
+      "checks": {},
+      "pending_confirmations": []
     },
     {
       "load_id": "L07",
@@ -175,7 +358,9 @@
       "reasons": [
         "missing Destination",
         "missing or invalid destination latitude"
-      ]
+      ],
+      "checks": {},
+      "pending_confirmations": []
     },
     {
       "load_id": "L08",
@@ -186,7 +371,30 @@
       "price_usd": 1700.0,
       "status": "provisional",
       "reasons": [
-        "driver weight capacity not stated; confirm at least 12600 lb"
+        "driver weight capacity not stated; confirm at least 12600 lb",
+        "confirm broker approval with the driver's factoring company"
+      ],
+      "checks": {
+        "equipment": {
+          "status": "pass",
+          "explanation": "equipment matches"
+        },
+        "capacity": {
+          "status": "unknown",
+          "explanation": "driver weight capacity not stated; confirm at least 12600 lb"
+        },
+        "minimum_rate": {
+          "status": "pass",
+          "explanation": "effective rate meets minimum"
+        },
+        "factoring": {
+          "status": "unknown",
+          "explanation": "confirm broker approval with the driver's factoring company"
+        }
+      },
+      "pending_confirmations": [
+        "driver weight capacity not stated; confirm at least 12600 lb",
+        "confirm broker approval with the driver's factoring company"
       ],
       "deadhead_to_origin_miles": 0.0,
       "loaded_miles": 462.2590865024532,
@@ -196,8 +404,10 @@
     }
   ],
   "unverified_requirements": [
-    "Factoring approval requires broker information absent from the board.",
-    "Weight capacity is absent from the transcript; ranked loads require confirmation."
+    "confirm broker approval with the driver's factoring company",
+    "driver weight capacity not stated; confirm at least 11500 lb",
+    "driver weight capacity not stated; confirm at least 12600 lb",
+    "driver weight capacity not stated; confirm at least 14200 lb"
   ],
   "notes": [
     "Geographic preferences are soft, not hard filters.",

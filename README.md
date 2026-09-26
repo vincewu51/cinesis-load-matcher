@@ -59,15 +59,15 @@ flowchart TD
     Mode -->|No: default| Replay["solve.read_profile(): saved profile and transcript hash check"]
     Extract --> Validate["Validate profile schema and supporting quotes"]
     Replay --> Validate
-    Validate --> Ready{"Required profile fields present?"}
+    Validate --> Ready{"Current location and home coordinates available?"}
     Ready -->|No| Stop["Stop: clarification required"]
     Ready -->|Yes| Rank["solve.rank_loads(): use profile and load board"]
     Read -->|Load board| Rank
-    Rank --> Filter["Validate load rows; check equipment, effective rate, and stated capacity"]
+    Rank --> Filter["Validate load rows; evaluate equipment, rate, capacity, and factoring"]
     Filter -->|Fails a check| Reject["Record rejection reasons in audit"]
-    Filter -->|Passes known checks| Capacity{"Driver capacity known?"}
-    Capacity -->|Yes| Eligible["Mark eligible under evaluated constraints"]
-    Capacity -->|No| Provisional["Mark provisional; record required capacity"]
+    Filter -->|No failed checks| Pending{"Any unknown filter?"}
+    Pending -->|No| Eligible["Mark eligible under evaluated constraints"]
+    Pending -->|Yes| Provisional["Mark provisional; list pending confirmations"]
     Eligible --> Sort["Sort by effective rate; select up to three loads"]
     Provisional --> Sort
     Sort --> Write["workbook.write_outputs()"]
@@ -86,9 +86,9 @@ This is the main program. `main()` reads the input workbook, loads or extracts a
 - **Data models:** `DriverProfile`, `Claim`, `Evidence`, and `Rate` define the structured response using Pydantic. Each populated claim requires supporting evidence; unknown values use `null`.
 - **Extraction:** `PROMPT` defines the extraction rules. `extract()` sends the full transcript in one OpenAI request and returns the profile with model, timestamp, prompt hash, and transcript hash. `validate_evidence()` checks that each quote occurs in its cited row after whitespace normalization. This verifies the quote's source, not whether its interpretation is correct.
 - **Replay:** `read_profile()` loads a saved profile, checks its schema version and transcript hash, and validates its evidence. This is the default path; `--refresh` requests a new extraction.
-- **Ranking:** `rank_loads()` validates load fields, applies equipment and rate constraints, and applies capacity when known. `haversine()` calculates pickup, delivery, and return-home distances. Results are sorted by unrounded effective rate, with load ID as the tie-breaker. The return value contains `top_three`, a per-load `audit`, and unresolved requirements.
+- **Ranking:** `rank_loads()` validates load fields and records `pass`, `fail`, or `unknown` for each equipment, minimum-rate, capacity, and factoring check. Any failure rejects the load; otherwise any unknown makes it provisional. Each audit row includes `checks` with explanations and `pending_confirmations`. New filters can use the same check structure without changing how final status is decided. `haversine()` calculates pickup, delivery, and return-home distances. Results are sorted by unrounded effective rate, with load ID as the tie-breaker. The return value contains `top_three`, a per-load `audit`, and unresolved requirements.
 
-Unknown capacity produces provisional candidates. Missing current location, home base, equipment, or minimum rate stops ranking with a validation error. CLI options are `--input`, `--profile`, `--output`, `--refresh`, `--model`, and `--repo-url`.
+Unknown equipment, minimum rate, capacity, or factoring requirements produce provisional candidates. Factoring approval also stays unknown because the board lacks broker information. Missing current location or home base prevents calculation of total mileage and stops ranking with a validation error. Critical missing load data is still excluded; geographic preferences remain soft rather than hard filters. CLI options are `--input`, `--profile`, `--output`, `--refresh`, `--model`, and `--repo-url`.
 
 ### `workbook.py` — workbook input and result output
 

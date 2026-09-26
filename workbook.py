@@ -152,38 +152,56 @@ def fill_workbook(source: Path, target: Path, answers: dict[str, dict]) -> None:
 def submission_note(result, repo_url, extraction_kind, profile):
     extraction = (
         "I used one OpenAI call to read the full conversation and extract the driver's profile. "
-        "Each answer includes a transcript quote and row number, which I checked against the original text."
+        "I checked each supporting quote against its cited transcript row."
         if extraction_kind == "openai"
-        else "I used a manual profile fixture for this test run."
+        else "I used a manual test fixture for this run."
     )
-    if result["capacity_lb"] is not None:
-        capacity = f"I applied the stated {result['capacity_lb']:,.0f} lb capacity."
-    else:
-        capacity = (
-            "The driver never states truck capacity, so I did not infer it from the 44,000 lb load "
-            "mentioned by the dispatcher. I present the top three as provisional and would confirm "
-            "capacity with the driver while presenting them."
-        )
     minimum = profile.minimum_rate.value
+    rate = f"{minimum.comparison} ${minimum.dollars_per_mile:g}/mile" if minimum else "unknown"
+    equipment = "/".join(profile.equipment.value or []) or "unknown"
+    # Describe the actual pending checks, including missing equipment or rate.
+    pending = sorted(
+        {
+            name
+            for row in result["top_three"]
+            for name, check in row["checks"].items()
+            if check["status"] == "unknown"
+        }
+    )
+    confirmation = (
+        "The options are provisional; I would confirm "
+        + ", ".join(name.replace("_", " ") for name in pending)
+        + " with the driver while presenting them."
+        if pending
+        else "No unresolved filters remain among the ranked options."
+    )
+    if not result["top_three"]:
+        confirmation = "No loads pass the known constraints; clarification is needed before offering alternatives."
+    # Pick a real rejected load with a calculable rate, rather than hardcode L05.
+    rejected = [
+        r for r in result["audit"] if r["status"] == "rejected" and "effective_rate_per_mile" in r
+    ]
+    example = ""
+    if rejected:
+        load = max(rejected, key=lambda r: r["effective_rate_per_mile"])
+        example = (
+            f"{load['load_id']} earns ${load['effective_rate_per_mile']:.3f}/mile, "
+            f"but I excluded it because {'; '.join(load['reasons'])}."
+        )
     return "\n\n".join(
         [
             f"Code: {repo_url or 'Public GitHub URL pending.'}",
             extraction,
             (
-                f"I interpreted {profile.current_location.value} as the current location, "
-                f"{profile.home_base.value} as home, {'/'.join(profile.equipment.value)} as the equipment, "
-                f"and {minimum.comparison} ${minimum.dollars_per_mile:g}/mile as the minimum rate."
+                f"I interpreted {profile.current_location.value} as the current location and "
+                f"{profile.home_base.value} as home. Equipment: {equipment}; minimum rate: {rate}."
             ),
-            (
-                "I applied the known equipment and rate filters, calculated the required effective rate, "
-                f"and ranked the remaining options. {capacity}"
-            ),
-            (
-                "I excluded L06 and L07 because price and destination are required to assess a load. "
-                "I would confirm those values before ranking them rather than guess. L05 earns "
-                "$2.514/mile, but I rejected it because its Flatbed label is not confirmed compatible "
-                "with the driver's Hotshot/Gooseneck. Broker factoring approval also remains to be confirmed."
-            ),
+            "I applied all known filters and ranked the remaining loads by price divided by total "
+            "pickup, delivery, and return-home miles. Unknown requirements remain unknown. "
+            + confirmation,
+            "I excluded loads missing critical information, such as price or destination. Presenting "
+            "these would not be useful; I would confirm the missing facts before ranking them rather than guess. "
+            + example,
         ]
     )
 
@@ -202,19 +220,21 @@ def write_outputs(source, output, profile, document, result, repo_url=None):
                 *result["current_coordinates"],
                 profile.home_base.value,
                 *result["home_coordinates"],
-                f"{profile.minimum_rate.value.comparison} ${profile.minimum_rate.value.dollars_per_mile:.2f}",
-                " / ".join(profile.equipment.value),
+                f"{profile.minimum_rate.value.comparison} ${profile.minimum_rate.value.dollars_per_mile:.2f}"
+                if profile.minimum_rate.value
+                else "Unknown — not stated",
+                " / ".join(profile.equipment.value or []) or "Unknown — not stated",
                 profile.weight_capacity_lb.value or "Unknown — not stated",
             ],
         )
     )
-    if result["mode"] == "provisional_unknown_capacity":
-        label = "PROVISIONAL: ranked on known constraints; capacity requires confirmation."
-    else:
-        label = f"VERIFIED: uses stated {result['capacity_lb']:,.0f} lb capacity."
+    label = {
+        "provisional": "PROVISIONAL: ranked on known constraints; confirm unresolved filters.",
+        "eligible": "ELIGIBLE: all evaluated filters passed.",
+        "no_candidates": "No loads passed the known constraints.",
+    }[result["mode"]]
     b = {
-        "A2": label
-        + " Effective rate includes all three legs. Factoring approval remains unverified.",
+        "A2": label + " Effective rate includes all three legs.",
         "A11": note,
     }
     if document["extraction"]["kind"] != "openai":

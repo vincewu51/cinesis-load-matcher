@@ -60,7 +60,7 @@ def test_haversine_known_geometry():
 
 def test_stated_capacity_top_three_and_empty_return(profile, inputs):
     result = rank_loads(with_capacity(profile, 14200), inputs[1])
-    assert result["mode"] == "verified_capacity"
+    assert result["mode"] == "provisional"
     assert [r["load_id"] for r in result["top_three"]] == ["L03", "L08", "L02"]
     assert [f"{r['effective_rate_per_mile']:.3f}" for r in result["top_three"]] == [
         "3.098",
@@ -74,7 +74,7 @@ def test_stated_capacity_top_three_and_empty_return(profile, inputs):
 
 def test_unknown_capacity_returns_provisional_ranking(profile, inputs):
     result = rank_loads(profile, inputs[1])
-    assert result["mode"] == "provisional_unknown_capacity"
+    assert result["mode"] == "provisional"
     assert [r["load_id"] for r in result["top_three"]] == ["L03", "L08", "L02"]
     assert all(r["status"] == "provisional" for r in result["top_three"])
     assert [r["weight_lb"] for r in result["top_three"]] == [14200, 12600, 11500]
@@ -119,7 +119,7 @@ def test_confirmed_capacity_is_applied(profile, inputs):
     profile.weight_capacity_lb.value = 13000
     profile.weight_capacity_lb.evidence = [Evidence(row=20, quote="example for unit test")]
     result = rank_loads(profile, inputs[1])
-    assert result["mode"] == "verified_capacity"
+    assert result["mode"] == "provisional"
     assert [r["load_id"] for r in result["top_three"]] == ["L08", "L02"]
 
 
@@ -304,7 +304,7 @@ def test_workbook_answers_and_preservation(tmp_path, workbook, profile, document
     assert wb["Part A (Fill In)"]["B16"].value is None
     assert wb["Part B (Fill In)"]["B5"].value == "L03"
     assert wb["Part B (Fill In)"]["C5"].value == "3.098"
-    assert "VERIFIED" in wb["Part B (Fill In)"]["A2"].value
+    assert "PROVISIONAL" in wb["Part B (Fill In)"]["A2"].value
     assert "test fixture" in wb["Part B (Fill In)"]["A11"].value
     assert wb["Part B (Fill In)"]["A10"].value.startswith("Paste a link to your code")
     assert wb["Part B (Fill In)"]["A11"].alignment.wrap_text is True
@@ -321,7 +321,7 @@ def test_unknown_capacity_workbook_is_provisional(tmp_path, workbook, profile, d
     assert wb["Part B (Fill In)"]["B5"].value == "L03"
     assert wb["Part B (Fill In)"]["C5"].value == "3.098"
     assert "PROVISIONAL" in wb["Part B (Fill In)"]["A2"].value
-    assert "L03 14,200 lb" in wb["Part B (Fill In)"]["A11"].value
+    assert "confirm capacity, factoring" in wb["Part B (Fill In)"]["A11"].value
     wb.close()
 
 
@@ -349,3 +349,71 @@ def test_secret_scan_including_xlsx():
     with zipfile.ZipFile(buf, "w") as z:
         z.writestr("xl/worksheets/sheet1.xml", fake)
     assert scanner.contains_secret(buf.getvalue())
+
+
+@pytest.mark.parametrize(
+    "field,check_name",
+    [
+        ("equipment", "equipment"),
+        ("minimum_rate", "minimum_rate"),
+        ("weight_capacity_lb", "capacity"),
+        ("factoring_requirement", "factoring"),
+    ],
+)
+def test_missing_driver_filter_is_provisional(profile, inputs, field, check_name):
+    with_capacity(profile, 14200)
+    getattr(profile, field).value = None
+    result = rank_loads(profile, inputs[1])
+    candidate = next(r for r in result["top_three"] if r["load_id"] == "L03")
+    assert candidate["status"] == "provisional"
+    assert candidate["checks"][check_name]["status"] == "unknown"
+    assert candidate["checks"][check_name]["explanation"] in candidate["pending_confirmations"]
+
+
+def test_known_failure_overrides_unknown_filters(profile, inputs):
+    profile.minimum_rate.value = None
+    rows = {r["load_id"]: r for r in rank_loads(profile, inputs[1])["audit"]}
+    assert rows["L04"]["status"] == "rejected"
+    assert rows["L04"]["checks"]["equipment"]["status"] == "fail"
+    assert rows["L04"]["checks"]["minimum_rate"]["status"] == "unknown"
+    assert rows["L04"]["reasons"] == ["incompatible equipment"]
+    assert rows["L04"]["pending_confirmations"]
+
+
+def test_multiple_unknown_filters_preserve_rate_ranking(profile, inputs):
+    profile.equipment.value = None
+    profile.minimum_rate.value = None
+    result = rank_loads(profile, inputs[1])
+    assert [r["load_id"] for r in result["top_three"]] == ["L03", "L05", "L08"]
+    assert all(len(r["pending_confirmations"]) == 4 for r in result["top_three"])
+    assert all(r["status"] == "rejected" for r in result["audit"] if r["load_id"] in {"L06", "L07"})
+
+
+def test_factoring_keeps_known_capacity_provisional(profile, inputs):
+    result = rank_loads(with_capacity(profile, 14200), inputs[1])
+    candidate = result["top_three"][0]
+    assert candidate["checks"]["capacity"]["status"] == "pass"
+    assert candidate["checks"]["factoring"]["status"] == "unknown"
+    assert candidate["status"] == "provisional"
+
+
+@pytest.mark.parametrize("field", ["current_location", "home_base"])
+def test_missing_distance_input_requires_clarification(profile, inputs, field):
+    getattr(profile, field).value = None
+    with pytest.raises(ValueError, match=f"Clarification required: {field}"):
+        rank_loads(profile, inputs[1])
+
+
+def test_workbook_handles_multiple_unknown_filters(tmp_path, workbook, profile, inputs):
+    profile.equipment.value = None
+    profile.minimum_rate.value = None
+    result = rank_loads(profile, inputs[1])
+    document = {"extraction": {"kind": "test_fixture"}, "profile": profile.model_dump()}
+    write_outputs(workbook, tmp_path, profile, document, result)
+    wb = load_workbook(tmp_path / "completed.xlsx", read_only=True, data_only=True)
+    assert wb["Part A (Fill In)"]["B11"].value == "Unknown — not stated"
+    assert wb["Part A (Fill In)"]["B12"].value == "Unknown — not stated"
+    note = wb["Part B (Fill In)"]["A11"].value
+    assert "confirm capacity, equipment, factoring, minimum rate" in note
+    assert len(note.split()) <= 200
+    wb.close()
