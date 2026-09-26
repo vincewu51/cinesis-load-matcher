@@ -107,3 +107,11 @@ This module handles Excel and JSON files for the main program.
 ### `test_solver.py` — automated checks
 
 The pytest suite uses the input workbook and saved profile as fixtures. It covers distance calculations, rate boundaries, capacity filtering, malformed loads, duplicate IDs, evidence validation, saved-profile fingerprints, workbook preservation, and secret detection. OpenAI responses are mocked, so tests make no live API calls. Generated test files are written to temporary directories.
+
+## Next steps
+
+1. **Manage prompts by scenario.** Add a prompt manager to select and version prompts for different locations, companies, and dispatch policies. Keep a shared extraction schema so the ranking logic can use the same structured output across scenarios.
+
+2. **Ask for missing information during live dispatch.** Move profile extraction and requirement checks into the live AI dispatcher. When critical information is missing, the dispatcher can proactively ask the driver a focused follow-up question, update the profile, and rerun the ranking before recommending a load.
+
+3. **Optimize assignments across multiple drivers.** Evaluate driver–load matches together rather than rank loads independently for each driver. Balance earnings, deadhead mileage, driver preferences, and fairness over time, while respecting eligibility and assigning each load only once. This would help distribute good opportunities more evenly across drivers.
