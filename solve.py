@@ -188,93 +188,18 @@ def number(value, label: str, *, positive: bool = False) -> float:
     return result
 
 
-def catalog_capacity(equipment: list[str], path: Path) -> dict:
-    """Return a source-backed scenario estimate, not a fleet-wide capacity guarantee."""
-    raw = path.read_bytes()
-    catalog = json.loads(raw)
-    if catalog.get("schema_version") != 1 or catalog.get("units") != "lb":
-        raise ValueError("Unsupported capacity catalog")
-    labels = {label.casefold() for label in equipment}
-    matches = [
-        row
-        for row in catalog["records"]
-        if labels.intersection(label.casefold() for label in row["equipment_labels"])
-    ]
-    metadata = {
-        "catalog_sha256": hashlib.sha256(raw).hexdigest(),
-        "matching_record_ids": [row["id"] for row in matches],
-        "value_lb": None,
-        "scope": "minimum in matched reference sample; actual truck capacity unconfirmed",
-    }
-    covered = {label.casefold() for row in matches for label in row["equipment_labels"]}
-    if not labels or not labels.issubset(covered):
-        return {
-            **metadata,
-            "reason": "No complete catalog coverage for the extracted equipment labels.",
-        }
-    if any(row.get("exclude_from_fallback") for row in matches):
-        return {
-            **metadata,
-            "reason": "Matching reference data contains unresolved conflicts; clarify configuration or capacity.",
-        }
-    for row in matches:
-        low = number(row["payload_lb_min"], "catalog payload", positive=True)
-        high = number(row["payload_lb_max"], "catalog payload", positive=True)
-        if (
-            low > high
-            or not row.get("source_url", "").startswith("https://")
-            or not row.get("reviewed_on")
-        ):
-            raise ValueError("Invalid or unsourced catalog entry")
-    selected = min(matches, key=lambda row: (float(row["payload_lb_min"]), row["id"]))
-    return {
-        **metadata,
-        "value_lb": float(selected["payload_lb_min"]),
-        "selected_record_id": selected["id"],
-        "source_url": selected["source_url"],
-        "reviewed_on": selected["reviewed_on"],
-        "basis": selected["basis"],
-        "reason": "Use only for conditional screening; confirm actual payload before offering.",
-    }
-
-
-def rank_loads(
-    profile: DriverProfile,
-    loads: list[dict],
-    assumed_capacity_lb: float | None = None,
-    capacity_catalog: Path | None = None,
-) -> dict:
+def rank_loads(profile: DriverProfile, loads: list[dict]) -> dict:
     for field in ["current_location", "home_base", "equipment", "minimum_rate"]:
         if not getattr(profile, field).value:
             raise ValueError(f"Clarification required: {field}")
-    if assumed_capacity_lb is not None and capacity_catalog is not None:
-        raise ValueError("Choose an explicit capacity or a catalog, not both")
     actual_capacity = profile.weight_capacity_lb.value
-    if assumed_capacity_lb is not None:
-        assumed_capacity_lb = number(assumed_capacity_lb, "assumed capacity", positive=True)
-        if actual_capacity is not None:
-            raise ValueError("Cannot override a stated driver capacity with an assumption")
-    capacity = actual_capacity if actual_capacity is not None else assumed_capacity_lb
-    capacity_source = (
-        "transcript"
+    capacity = (
+        number(actual_capacity, "stated capacity", positive=True)
         if actual_capacity is not None
-        else "explicit_assumption"
-        if capacity is not None
-        else "unknown"
+        else None
     )
-    estimate = None
-    if capacity is None and capacity_catalog is not None:
-        estimate = catalog_capacity(profile.equipment.value, capacity_catalog)
-        capacity = estimate["value_lb"]
-        if capacity is not None:
-            capacity_source = "catalog_minimum"
-    mode = (
-        "verified_capacity"
-        if actual_capacity is not None
-        else "conditional"
-        if capacity is not None
-        else "provisional_unknown_capacity"
-    )
+    capacity_source = "transcript" if capacity is not None else "unknown"
+    mode = "verified_capacity" if capacity is not None else "provisional_unknown_capacity"
     current = city_coordinates(profile.current_location.value, loads)
     home = city_coordinates(profile.home_base.value, loads)
     equipment = {e.casefold() for e in profile.equipment.value}
@@ -329,10 +254,7 @@ def rank_loads(
         if str(row["Trailer"]).strip().casefold() not in equipment:
             reasons.append("incompatible equipment")
         if capacity is not None and weight > capacity:
-            reason = f"weight exceeds {capacity:g} lb capacity"
-            if capacity_source == "catalog_minimum":
-                reason = f"weight exceeds {capacity:g} lb catalog estimate; actual capacity unknown"
-            reasons.append(reason)
+            reasons.append(f"weight exceeds {capacity:g} lb capacity")
         legs = (
             haversine(current, origin),
             haversine(origin, dest),
@@ -358,26 +280,19 @@ def rank_loads(
             )
             if not meets_rate:
                 reasons.append("effective rate does not meet driver's minimum")
-        if (
-            capacity_source == "catalog_minimum"
-            and len(reasons) == 1
-            and "catalog estimate" in reasons[0]
-        ):
-            result["status"] = "needs_capacity"
         if not reasons:
             if capacity is None:
                 result["status"] = "provisional"
                 reasons.append(f"driver weight capacity not stated; confirm at least {weight:g} lb")
             else:
-                result["status"] = "conditional" if mode == "conditional" else "eligible"
+                result["status"] = "eligible"
         audit.append(result)
-    candidates = [r for r in audit if r["status"] in {"eligible", "conditional", "provisional"}]
+    candidates = [r for r in audit if r["status"] in {"eligible", "provisional"}]
     candidates.sort(key=lambda r: (-r["effective_rate_per_mile"], r["load_id"]))
     return {
         "mode": mode,
         "capacity_lb": capacity,
         "capacity_source": capacity_source,
-        "capacity_estimate": estimate,
         "current_coordinates": current,
         "home_coordinates": home,
         "earth_radius_miles": EARTH_RADIUS_MILES,
@@ -412,17 +327,6 @@ def main():
         help="Call OpenAI instead of replaying the saved extraction",
     )
     parser.add_argument("--model", help="Override OPENAI_MODEL")
-    capacity_options = parser.add_mutually_exclusive_group()
-    capacity_options.add_argument(
-        "--capacity-from-catalog",
-        action="store_true",
-        help="When capacity is missing, use a source-backed catalog minimum as a conditional estimate",
-    )
-    capacity_options.add_argument(
-        "--assumed-capacity-lb",
-        type=float,
-        help="Explicit conditional scenario; default leaves capacity unknown",
-    )
     parser.add_argument("--repo-url", help="Include the public GitHub URL in the workbook note")
     args = parser.parse_args()
     for logger in ["openai", "httpx", "httpcore"]:
@@ -434,18 +338,9 @@ def main():
             profile = DriverProfile.model_validate(document["profile"])
         else:
             profile, document = read_profile(args.profile, conversation)
-        catalog = (
-            Path(__file__).resolve().parent / "data/truck-capacities.json"
-            if args.capacity_from_catalog
-            else None
-        )
-        result = rank_loads(profile, loads, args.assumed_capacity_lb, catalog)
+        result = rank_loads(profile, loads)
         write_outputs(args.input, args.output, profile, document, result, args.repo_url)
         print(f"{result['mode']}: {len(result['top_three'])} loads. Results: {args.output}")
-        if result["capacity_estimate"]:
-            print(
-                f"Catalog estimate: {result['capacity_lb']} lb; {result['capacity_estimate']['reason']}"
-            )
         for i, row in enumerate(result["top_three"], 1):
             print(f"{i}. {row['load_id']}  ${row['effective_rate_per_mile']:.3f}/mile")
     except ExtractionError as exc:

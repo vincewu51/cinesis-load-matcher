@@ -10,7 +10,7 @@ Extract driver requirements and rank three candidate loads using the confirmed c
 
 OpenAI extracts fields with quotes. Python validates evidence, uses board coordinates and haversine miles, then applies every constraint supported by the available data before ranking.
 
-Capacity is **unknown**. The results rank loads that match the known equipment and rate constraints, then label them provisional until payload capacity and factoring approval are confirmed. Exclude generic Flatbed. L06/L07 lack data; high-paying L04 requires Van equipment and fails the rate floor.
+Capacity is **unknown**. The results rank loads that match the known equipment and rate constraints, then label them provisional until payload capacity and factoring approval are confirmed. Exclude generic Flatbed. L06/L07 lack data. L05 earns $2.514/mile but is rejected because its Flatbed label does not match the extracted Hotshot/Gooseneck equipment; confirm compatibility.
 
 ## Check results
 
@@ -32,7 +32,7 @@ uv run python solve.py
 uv run pytest -q
 ```
 
-Replays the saved profile without API calls into `outputs/`. The default keeps capacity unknown and returns provisional candidates. Add `--capacity-from-catalog` only for optional scenario analysis.
+Replays the saved profile without API calls into `outputs/`. Capacity remains unknown, so the program returns provisional candidates.
 
 For fresh extraction:
 
@@ -47,7 +47,7 @@ Keys stay in owner-only, Git-ignored `.env`. Before publishing:
 uv run python security.py --check
 ```
 
-Add `--repo-url YOUR_PUBLIC_GITHUB_URL` for submission.
+The submission workbook includes the public repository link: https://github.com/vincewu51/cinesis-load-matcher.
 
 ## How each component works
 
@@ -77,7 +77,7 @@ Loads that pass the known equipment and rate checks are ranked provisionally. Ea
 
 ### 5. Filter and rank — `solve.py`
 
-Reject incomplete or invalid rows, then apply every constraint supported by known data. Unknown capacity is recorded as a pending check rather than treated as either a pass or failure. L06 has no price; L07 has no destination. L04 requires Van equipment and also fails the rate floor. Apply the driver's “above $2” wording as a strict `> 2` threshold to effective rate, as required by the assignment.
+Reject incomplete or invalid rows, then apply every constraint supported by known data. Unknown capacity is recorded as a pending check rather than treated as either a pass or failure. L06 has no price; L07 has no destination. L05 has a $2.514/mile effective rate but is excluded because its Flatbed label does not match Hotshot/Gooseneck; confirm compatibility. Apply the driver's “above $2” wording as a strict `> 2` threshold to effective rate, as required by the assignment.
 
 Calculate haversine distance for Dallas → pickup, pickup → delivery, and delivery → San Antonio. For L03, these total approximately **484.256 miles**; `$1,500 / 484.256 = $3.098/mile`. Sort passing loads by the unrounded rate, using load ID to break ties, and display three decimals. If fewer than three pass, return fewer than three.
 
@@ -86,18 +86,3 @@ Calculate haversine distance for Dallas → pickup, pickup → delivery, and del
 `workbook.py` writes `profile.json`, `ranking.json` (including distances, provisional checks, and rejection reasons), and `completed.xlsx`. Only the two answer sheets are changed; the original workbook and other embedded content are preserved. The workbook states that capacity is unknown and includes a submission note of at most 200 words.
 
 `security.py` saves the API key through a hidden prompt into an owner-only, Git-ignored `.env`. Its pre-publication check scans staged files, including Excel contents, without printing matched secrets. `test_solver.py` checks extraction handling, filtering, calculations, and workbook preservation without making live API calls.
-
-
-### 7. Estimate missing capacity from a small catalog
-
-[data/truck-capacities.json](data/truck-capacities.json) is a source-backed US equipment sample: five Big Tex gooseneck model families and four U-Haul box-truck sizes. Each record stores its payload range, source URL, and review date. Van, Reefer, and generic Flatbed are explicitly unresolved rather than assigned invented numbers. This is a starter catalog, not a complete US fleet database.
-
-```sh
-uv run python solve.py --capacity-from-catalog --output outputs/catalog
-```
-
-When extracted capacity is unknown, match the equipment labels and select the smallest published payload lower endpoint among matching records. Keep the driver's extracted capacity as `null`; record the estimate, selected record, source URL, and catalog hash separately in `ranking.json` and label the workbook conditional. Stated capacity takes precedence. Explicit capacity and catalog flags are mutually exclusive.
-
-For Hotshot/Gooseneck, the current sample minimum is **8,710 lb**, from [Big Tex 14GN](https://www.bigtextrailers.com/trailer/14gn/). This is the minimum in our sample, **not a guaranteed lower bound for every truck**. Actual available payload also depends on the tow vehicle, hitch, configuration, and existing load; [Ford's guide](https://www.ford.com/towing/) explains these distinctions. Loads above an estimated capacity require clarification rather than being declared definitively overweight. For this conversation, all three otherwise suitable loads exceed 8,710 lb, so this mode produces no ranked offers. The saved results keep capacity unknown and rank candidates using only known constraints.
-
-Conflicting source data blocks the affected class estimate. For example, [U-Haul's 10ft page](https://www.uhaul.com/Truck-Rentals/10ft-Moving-Truck/) lists a 2,850 lb maximum load, but its listed gross and empty weights differ by 2,810 lb. The record is marked excluded, and the broad Box Truck fallback remains unresolved; simply deleting that smaller model would misleadingly raise the class minimum. Uncovered equipment also stays unknown. Update reviewed records in the JSON file as coverage improves; the LLM never invents catalog capacities.

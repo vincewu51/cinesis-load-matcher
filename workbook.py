@@ -155,17 +155,7 @@ def submission_note(result, repo_url, extraction_kind, profile):
         if extraction_kind == "openai"
         else "Manual test fixture; no live LLM extraction."
     )
-    if result["capacity_source"] == "catalog_minimum":
-        capacity = (
-            f"Capacity unstated; {result['capacity_lb']:,.0f} lb is a catalog estimate, not a guaranteed truck limit. "
-            f"Source: {result['capacity_estimate']['source_url']}"
-        )
-    elif result["capacity_source"] == "explicit_assumption":
-        capacity = (
-            f"Capacity unstated; this scenario assumes {result['capacity_lb']:,.0f} lb. "
-            "Recommendations require capacity confirmation."
-        )
-    elif result["capacity_lb"] is not None:
+    if result["capacity_lb"] is not None:
         capacity = f"Use the stated {result['capacity_lb']:,.0f} lb capacity."
     else:
         required = ", ".join(
@@ -186,7 +176,7 @@ def submission_note(result, repo_url, extraction_kind, profile):
         ),
         f"3. Assumptions: {capacity} Geography is a preference. Generic Flatbed compatibility and broker factoring approval are unconfirmed.",
         "4. Incomplete data: Exclude L06 (missing price) and L07 (missing destination); do not substitute zeros.",
-        "5. Rejected example: L04 pays $1,500 but requires Van equipment, which does not match this driver's Hotshot/Gooseneck. Its $1.419 effective rate also falls below the $2 minimum.",
+        "5. High-rate rejected example: L05 earns $2.514/mile, above the driver's floor, but is labeled Flatbed while the extracted equipment is Hotshot/Gooseneck. It is excluded pending confirmation that this trailer label is compatible.",
     ]
     return "\n\n".join(sections)
 
@@ -211,19 +201,10 @@ def write_outputs(source, output, profile, document, result, repo_url=None):
             ],
         )
     )
-    if result["capacity_source"] in {"catalog_minimum", "explicit_assumption"}:
-        a.update(
-            A16="Catalog estimate (not confirmed)"
-            if result["capacity_source"] == "catalog_minimum"
-            else "Capacity assumption (not extracted)",
-            B16=result["capacity_lb"],
-        )
-    if result["mode"] == "conditional":
-        label = f"CONDITIONAL: uses {result['capacity_lb']:g} lb capacity."
-    elif result["mode"] == "provisional_unknown_capacity":
+    if result["mode"] == "provisional_unknown_capacity":
         label = "PROVISIONAL: ranked on known constraints; capacity requires confirmation."
     else:
-        label = result["mode"]
+        label = f"VERIFIED: uses stated {result['capacity_lb']:,.0f} lb capacity."
     b = {
         "A2": label
         + " Effective rate includes all three legs. Factoring approval remains unverified.",

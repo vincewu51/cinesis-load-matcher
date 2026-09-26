@@ -47,15 +47,20 @@ def document(profile, inputs):
     }
 
 
+def with_capacity(profile, pounds):
+    profile.weight_capacity_lb.value = pounds
+    return profile
+
+
 def test_haversine_known_geometry():
     assert haversine((0, 0), (0, 0)) == 0
     assert haversine((0, 0), (0, 90)) == pytest.approx(6218.4071, abs=0.001)
     assert haversine((29, -98), (32, -96)) == haversine((32, -96), (29, -98))
 
 
-def test_conditional_top_three_and_empty_return(profile, inputs):
-    result = rank_loads(profile, inputs[1], 14200)
-    assert result["mode"] == "conditional"
+def test_stated_capacity_top_three_and_empty_return(profile, inputs):
+    result = rank_loads(with_capacity(profile, 14200), inputs[1])
+    assert result["mode"] == "verified_capacity"
     assert [r["load_id"] for r in result["top_three"]] == ["L03", "L08", "L02"]
     assert [f"{r['effective_rate_per_mile']:.3f}" for r in result["top_three"]] == [
         "3.098",
@@ -65,7 +70,6 @@ def test_conditional_top_three_and_empty_return(profile, inputs):
     l08 = next(r for r in result["audit"] if r["load_id"] == "L08")
     assert l08["deadhead_to_origin_miles"] == 0
     assert l08["deadhead_home_miles"] == pytest.approx(223.111, abs=0.001)
-    assert profile.weight_capacity_lb.value is None
 
 
 def test_unknown_capacity_returns_provisional_ranking(profile, inputs):
@@ -86,11 +90,13 @@ def test_unknown_capacity_returns_provisional_ranking(profile, inputs):
     ],
 )
 def test_capacity_sensitivity(profile, inputs, capacity, expected):
-    assert [r["load_id"] for r in rank_loads(profile, inputs[1], capacity)["top_three"]] == expected
+    assert [
+        r["load_id"] for r in rank_loads(with_capacity(profile, capacity), inputs[1])["top_three"]
+    ] == expected
 
 
 def test_equipment_missing_data_and_rejections(profile, inputs):
-    rows = {r["load_id"]: r for r in rank_loads(profile, inputs[1], 14200)["audit"]}
+    rows = {r["load_id"]: r for r in rank_loads(with_capacity(profile, 14200), inputs[1])["audit"]}
     assert "incompatible equipment" in rows["L05"]["reasons"]
     assert "incompatible equipment" in rows["L04"]["reasons"]
     assert "effective rate does not meet" in " ".join(rows["L04"]["reasons"])
@@ -100,29 +106,27 @@ def test_equipment_missing_data_and_rejections(profile, inputs):
 
 def test_strict_rate_boundary_uses_full_precision(profile, inputs):
     rows = inputs[1]
-    rate = next(r for r in rank_loads(profile, rows, 14200)["audit"] if r["load_id"] == "L03")[
-        "effective_rate_per_mile"
-    ]
+    rate = next(
+        r for r in rank_loads(with_capacity(profile, 14200), rows)["audit"] if r["load_id"] == "L03"
+    )["effective_rate_per_mile"]
     profile.minimum_rate.value.dollars_per_mile = rate
-    assert not rank_loads(profile, rows, 14200)["top_three"]
+    assert not rank_loads(with_capacity(profile, 14200), rows)["top_three"]
     profile.minimum_rate.value.comparison = ">="
-    assert rank_loads(profile, rows, 14200)["top_three"][0]["load_id"] == "L03"
+    assert rank_loads(with_capacity(profile, 14200), rows)["top_three"][0]["load_id"] == "L03"
 
 
-def test_confirmed_capacity_cannot_be_overridden(profile, inputs):
+def test_confirmed_capacity_is_applied(profile, inputs):
     profile.weight_capacity_lb.value = 13000
     profile.weight_capacity_lb.evidence = [Evidence(row=20, quote="example for unit test")]
     result = rank_loads(profile, inputs[1])
     assert result["mode"] == "verified_capacity"
     assert [r["load_id"] for r in result["top_three"]] == ["L08", "L02"]
-    with pytest.raises(ValueError):
-        rank_loads(profile, inputs[1], 14200)
 
 
 @pytest.mark.parametrize("bad", [0, -1, math.nan, math.inf])
 def test_invalid_capacity(profile, inputs, bad):
     with pytest.raises(ValueError):
-        rank_loads(profile, inputs[1], bad)
+        rank_loads(with_capacity(profile, bad), inputs[1])
 
 
 @pytest.mark.parametrize(
@@ -138,17 +142,21 @@ def test_invalid_capacity(profile, inputs, bad):
 def test_malformed_load_excluded(profile, inputs, field, value):
     rows = inputs[1]
     rows[2][field] = value
-    assert "L03" not in [r["load_id"] for r in rank_loads(profile, rows, 14200)["top_three"]]
+    assert "L03" not in [
+        r["load_id"] for r in rank_loads(with_capacity(profile, 14200), rows)["top_three"]
+    ]
 
 
 def test_duplicate_ids_and_ties(profile, inputs):
     rows = inputs[1]
     copy = {**rows[2], "Load ID": "L00"}
-    assert [r["load_id"] for r in rank_loads(profile, rows + [copy], 14200)["top_three"]][:2] == [
+    assert [
+        r["load_id"] for r in rank_loads(with_capacity(profile, 14200), rows + [copy])["top_three"]
+    ][:2] == [
         "L00",
         "L03",
     ]
-    duplicated = rank_loads(profile, rows + [rows[2]], 14200)
+    duplicated = rank_loads(with_capacity(profile, 14200), rows + [rows[2]])
     assert "L03" not in [r["load_id"] for r in duplicated["top_three"]]
 
 
@@ -168,7 +176,7 @@ def test_zero_total_distance_excluded(profile, inputs):
             "Price ($)": 5000,
         }
     ]
-    result = rank_loads(profile, rows, 14200)
+    result = rank_loads(with_capacity(profile, 14200), rows)
     assert result["audit"][-1]["reasons"] == ["zero total trip distance"]
 
 
@@ -279,7 +287,7 @@ def test_stale_saved_profile_rejected(tmp_path, document, inputs):
 
 def test_workbook_answers_and_preservation(tmp_path, workbook, profile, document, inputs):
     before = hashlib.sha256(workbook.read_bytes()).hexdigest()
-    result = rank_loads(profile, inputs[1], 14200)
+    result = rank_loads(with_capacity(profile, 14200), inputs[1])
     write_outputs(workbook, tmp_path, profile, document, result, None)
     assert hashlib.sha256(workbook.read_bytes()).hexdigest() == before
     with (
@@ -292,11 +300,11 @@ def test_workbook_answers_and_preservation(tmp_path, workbook, profile, document
         assert all("worksheets/sheet" in name for name in changed)
     wb = load_workbook(tmp_path / "completed.xlsx", read_only=True, data_only=True)
     assert wb["Part A (Fill In)"]["B5"].value == "Dallas"
-    assert wb["Part A (Fill In)"]["B13"].value.startswith("Unknown")
-    assert wb["Part A (Fill In)"]["B16"].value == 14200
+    assert wb["Part A (Fill In)"]["B13"].value == 14200
+    assert wb["Part A (Fill In)"]["B16"].value is None
     assert wb["Part B (Fill In)"]["B5"].value == "L03"
     assert wb["Part B (Fill In)"]["C5"].value == "3.098"
-    assert "CONDITIONAL" in wb["Part B (Fill In)"]["A2"].value
+    assert "VERIFIED" in wb["Part B (Fill In)"]["A2"].value
     assert "test fixture" in wb["Part B (Fill In)"]["A11"].value
     assert wb["Part B (Fill In)"]["A10"].value.startswith("Paste a link to your code")
     assert wb["Part B (Fill In)"]["A11"].alignment.wrap_text is True
@@ -320,12 +328,13 @@ def test_unknown_capacity_workbook_is_provisional(tmp_path, workbook, profile, d
 def test_submission_note_word_limit(profile, inputs):
     for capacity in [None, 14200]:
         note = submission_note(
-            rank_loads(profile, inputs[1], capacity),
+            rank_loads(with_capacity(profile, capacity), inputs[1]),
             "https://github.com/example/project",
             "openai",
             profile,
         )
         assert len(note.split()) <= 200
+        assert "High-rate rejected example: L05 earns $2.514/mile" in note
 
 
 def test_secret_scan_including_xlsx():
@@ -340,75 +349,3 @@ def test_secret_scan_including_xlsx():
     with zipfile.ZipFile(buf, "w") as z:
         z.writestr("xl/worksheets/sheet1.xml", fake)
     assert scanner.contains_secret(buf.getvalue())
-
-
-def test_catalog_minimum_has_provenance_and_keeps_profile_unknown(profile, inputs):
-    path = ROOT / "data/truck-capacities.json"
-    result = rank_loads(profile, inputs[1], capacity_catalog=path)
-    assert result["capacity_lb"] == 8710
-    assert result["capacity_source"] == "catalog_minimum"
-    assert result["mode"] == "conditional"
-    assert profile.weight_capacity_lb.value is None
-    estimate = result["capacity_estimate"]
-    assert estimate["selected_record_id"] == "bigtex-14gn"
-    assert estimate["catalog_sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
-    assert len(estimate["matching_record_ids"]) == 5
-    assert estimate["source_url"].startswith("https://www.bigtextrailers.com/")
-    assert result["top_three"] == []
-    rows = {r["load_id"]: r for r in result["audit"]}
-    assert all(rows[key]["status"] == "needs_capacity" for key in ["L02", "L03", "L08"])
-    assert rows["L04"]["status"] == "rejected"
-
-
-def test_catalog_estimate_allows_only_conditional_candidates(profile, inputs):
-    rows = inputs[1]
-    rows[2]["Weight"] = 8000
-    result = rank_loads(profile, rows, capacity_catalog=ROOT / "data/truck-capacities.json")
-    assert result["top_three"][0]["load_id"] == "L03"
-    assert result["top_three"][0]["status"] == "conditional"
-
-
-@pytest.mark.parametrize("labels", [["Van"], ["Flatbed"], ["Reefer"], ["Gooseneck", "Van"], []])
-def test_catalog_does_not_fill_uncovered_classes(labels):
-    estimate = extraction.catalog_capacity(labels, ROOT / "data/truck-capacities.json")
-    assert estimate["value_lb"] is None
-
-
-def test_conflicting_catalog_source_blocks_box_truck_estimate():
-    estimate = extraction.catalog_capacity(["Box Truck"], ROOT / "data/truck-capacities.json")
-    assert estimate["value_lb"] is None
-    assert "conflicts" in estimate["reason"]
-
-
-def test_stated_capacity_precedes_catalog(profile, inputs):
-    profile.weight_capacity_lb.value = 13000
-    result = rank_loads(profile, inputs[1], capacity_catalog=Path("unused-path.json"))
-    assert result["capacity_lb"] == 13000
-    assert result["capacity_source"] == "transcript"
-    assert result["capacity_estimate"] is None
-    with pytest.raises(ValueError):
-        rank_loads(profile, inputs[1], 14200, ROOT / "data/truck-capacities.json")
-
-
-@pytest.mark.parametrize("bad", [-1, float("nan"), float("inf"), 20000])
-def test_invalid_catalog_capacity_rejected(tmp_path, bad):
-    catalog = json.loads((ROOT / "data/truck-capacities.json").read_text())
-    catalog["records"][0]["payload_lb_min"] = bad
-    path = tmp_path / "catalog.json"
-    path.write_text(json.dumps(catalog))
-    with pytest.raises(ValueError):
-        extraction.catalog_capacity(["Gooseneck"], path)
-
-
-def test_catalog_workbook_discloses_estimate(tmp_path, workbook, profile, document, inputs):
-    result = rank_loads(profile, inputs[1], capacity_catalog=ROOT / "data/truck-capacities.json")
-    write_outputs(workbook, tmp_path, profile, document, result)
-    wb = load_workbook(tmp_path / "completed.xlsx", read_only=True, data_only=True)
-    assert wb["Part A (Fill In)"]["B13"].value == "Unknown — not stated"
-    assert wb["Part A (Fill In)"]["A16"].value == "Catalog estimate (not confirmed)"
-    assert wb["Part A (Fill In)"]["B16"].value == 8710
-    note = wb["Part B (Fill In)"]["A11"].value
-    assert "not a guaranteed truck limit" in note
-    assert "bigtextrailers.com" in note
-    assert len(note.split()) <= 200
-    wb.close()
