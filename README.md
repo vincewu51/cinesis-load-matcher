@@ -51,6 +51,34 @@ The submission workbook includes the public repository link: https://github.com/
 
 ## How each component works
 
+```mermaid
+flowchart TD
+    Input["data/input.xlsx"] --> Read["workbook.read_inputs(): conversation and load board"]
+    Read --> Mode{"Run with --refresh?"}
+    Mode -->|Yes| Extract["solve.extract(): full transcript to OpenAI"]
+    Mode -->|No: default| Replay["solve.read_profile(): saved profile and transcript hash check"]
+    Extract --> Validate["Validate profile schema and supporting quotes"]
+    Replay --> Validate
+    Validate --> Ready{"Required profile fields present?"}
+    Ready -->|No| Stop["Stop: clarification required"]
+    Ready -->|Yes| Rank["solve.rank_loads(): use profile and load board"]
+    Read -->|Load board| Rank
+    Rank --> Filter["Validate load rows; check equipment, effective rate, and stated capacity"]
+    Filter -->|Fails a check| Reject["Record rejection reasons in audit"]
+    Filter -->|Passes known checks| Capacity{"Driver capacity known?"}
+    Capacity -->|Yes| Eligible["Mark eligible under evaluated constraints"]
+    Capacity -->|No| Provisional["Mark provisional; record required capacity"]
+    Eligible --> Sort["Sort by effective rate; select up to three loads"]
+    Provisional --> Sort
+    Sort --> Write["workbook.write_outputs()"]
+    Reject -->|Audit| Write
+    Write --> Excel["completed.xlsx"]
+    Write --> Profile["profile.json"]
+    Write --> Audit["ranking.json: top three and full audit"]
+```
+
+Effective rate includes travel to pickup, delivery, and the return home. Factoring approval remains an unresolved check because broker information is absent from the board.
+
 ### `solve.py` — command-line entry point, extraction, and ranking
 
 This is the main program. `main()` reads the input workbook, loads or extracts a driver profile, ranks the loads, and calls `workbook.write_outputs()` to save the results.
@@ -79,13 +107,3 @@ This module handles Excel and JSON files for the main program.
 ### `test_solver.py` — automated checks
 
 The pytest suite uses the input workbook and saved profile as fixtures. It covers distance calculations, rate boundaries, capacity filtering, malformed loads, duplicate IDs, evidence validation, saved-profile fingerprints, workbook preservation, and secret detection. OpenAI responses are mocked, so tests make no live API calls. Generated test files are written to temporary directories.
-
-The main call sequence is:
-
-```text
-solve.main()
-  → workbook.read_inputs()
-  → solve.read_profile() or solve.extract()
-  → solve.rank_loads()
-  → workbook.write_outputs()
-```
