@@ -162,8 +162,8 @@ def submission_note(result, repo_url, extraction_kind, profile):
             f"{row['load_id']} {row['weight_lb']:,.0f} lb" for row in result["top_three"]
         )
         capacity = (
-            "Capacity is unstated, so the ranking is provisional. "
-            f"Confirm payload capacity for {required} before booking."
+            "Capacity is unstated. "
+            f"The presented options require {required}; confirm actual capacity with the driver."
         )
     minimum = profile.minimum_rate.value
     sections = [
@@ -174,8 +174,8 @@ def submission_note(result, repo_url, extraction_kind, profile):
             "Effective rate = price / total miles. Apply known equipment and rate "
             f"({minimum.comparison} ${minimum.dollars_per_mile:g}/mile) constraints, then sort at full precision and display three decimals."
         ),
-        f"3. Assumptions: {capacity} Geography is a preference. Generic Flatbed compatibility and broker factoring approval are unconfirmed.",
-        "4. Incomplete data: Exclude L06 (missing price) and L07 (missing destination); do not substitute zeros.",
+        f"3. Assumptions: Apply all known filters, present the remaining options as provisional, and confirm unresolved filters with the driver while presenting them. {capacity} Geography is a preference; Flatbed compatibility and broker factoring approval remain unconfirmed.",
+        "4. Missing load data: Exclude L06 (missing price) and L07 (missing destination) because these fields are critical to eligibility and rate. Do not guess them; confirm the missing facts before considering either load in the ranking.",
         "5. High-rate rejected example: L05 earns $2.514/mile, above the driver's floor, but is labeled Flatbed while the extracted equipment is Hotshot/Gooseneck. It is excluded pending confirmation that this trailer label is compatible.",
     ]
     return "\n\n".join(sections)
