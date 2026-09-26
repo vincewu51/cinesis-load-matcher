@@ -334,7 +334,7 @@ def test_submission_note_word_limit(profile, inputs):
             profile,
         )
         assert len(note.split()) <= 200
-        assert "High-rate rejected example: L05 earns $2.514/mile" in note
+        assert "L05 earns $2.514/mile" in note
 
 
 def test_secret_scan_including_xlsx():

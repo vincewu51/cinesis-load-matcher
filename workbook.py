@@ -151,34 +151,41 @@ def fill_workbook(source: Path, target: Path, answers: dict[str, dict]) -> None:
 
 def submission_note(result, repo_url, extraction_kind, profile):
     extraction = (
-        "One OpenAI call reads the full transcript and returns structured fields with quotes and row references. Python validates types and checks each quote against its source."
+        "I used one OpenAI call to read the full conversation and extract the driver's profile. "
+        "Each answer includes a transcript quote and row number, which I checked against the original text."
         if extraction_kind == "openai"
-        else "Manual test fixture; no live LLM extraction."
+        else "I used a manual profile fixture for this test run."
     )
     if result["capacity_lb"] is not None:
-        capacity = f"Use the stated {result['capacity_lb']:,.0f} lb capacity."
+        capacity = f"I applied the stated {result['capacity_lb']:,.0f} lb capacity."
     else:
-        required = ", ".join(
-            f"{row['load_id']} {row['weight_lb']:,.0f} lb" for row in result["top_three"]
-        )
         capacity = (
-            "Capacity is unstated. "
-            f"The presented options require {required}; confirm actual capacity with the driver."
+            "The driver never states truck capacity, so I did not infer it from the 44,000 lb load "
+            "mentioned by the dispatcher. I present the top three as provisional and would confirm "
+            "capacity with the driver while presenting them."
         )
     minimum = profile.minimum_rate.value
-    sections = [
-        f"Code: {repo_url or 'Public GitHub URL pending.'}",
-        f"1. Extraction: {extraction}",
-        (
-            "2. Ranking: Use board coordinates and haversine miles for current location → pickup → delivery → home. "
-            "Effective rate = price / total miles. Apply known equipment and rate "
-            f"({minimum.comparison} ${minimum.dollars_per_mile:g}/mile) constraints, then sort at full precision and display three decimals."
-        ),
-        f"3. Assumptions: Apply all known filters, present the remaining options as provisional, and confirm unresolved filters with the driver while presenting them. {capacity} Geography is a preference; Flatbed compatibility and broker factoring approval remain unconfirmed.",
-        "4. Missing load data: Exclude L06 (missing price) and L07 (missing destination) because these fields are critical to eligibility and rate. Do not guess them; confirm the missing facts before considering either load in the ranking.",
-        "5. High-rate rejected example: L05 earns $2.514/mile, above the driver's floor, but is labeled Flatbed while the extracted equipment is Hotshot/Gooseneck. It is excluded pending confirmation that this trailer label is compatible.",
-    ]
-    return "\n\n".join(sections)
+    return "\n\n".join(
+        [
+            f"Code: {repo_url or 'Public GitHub URL pending.'}",
+            extraction,
+            (
+                f"I interpreted {profile.current_location.value} as the current location, "
+                f"{profile.home_base.value} as home, {'/'.join(profile.equipment.value)} as the equipment, "
+                f"and {minimum.comparison} ${minimum.dollars_per_mile:g}/mile as the minimum rate."
+            ),
+            (
+                "I applied the known equipment and rate filters, calculated the required effective rate, "
+                f"and ranked the remaining options. {capacity}"
+            ),
+            (
+                "I excluded L06 and L07 because price and destination are required to assess a load. "
+                "I would confirm those values before ranking them rather than guess. L05 earns "
+                "$2.514/mile, but I rejected it because its Flatbed label is not confirmed compatible "
+                "with the driver's Hotshot/Gooseneck. Broker factoring approval also remains to be confirmed."
+            ),
+        ]
+    )
 
 
 def write_outputs(source, output, profile, document, result, repo_url=None):
