@@ -8,9 +8,11 @@ Extract driver requirements and rank three candidate loads using the confirmed c
 
 ## Solution
 
-OpenAI extracts fields with quotes. Python validates evidence, uses board coordinates and haversine miles, then applies every constraint supported by the available data before ranking.
+The solution uses a single OpenAI call to read the full conversation and extract the driver profile. Each extracted answer includes a supporting transcript quote and row number, which are verified against the original text.
 
-Capacity is **unknown**. The results rank loads that match the known equipment and rate constraints, then label them provisional until payload capacity and factoring approval are confirmed. Exclude generic Flatbed. L06/L07 lack data. L05 earns $2.514/mile but is rejected because its Flatbed label does not match the extracted Hotshot/Gooseneck equipment; confirm compatibility.
+For ranking, I only apply known constraints before sorting by effective rate per mile. In this example, the driver never states truck capacity, so the top three results should be treated as provisional. In production, I would surface those options while asking the driver to confirm unknown constraints like capacity. We could also use a vehicle-capacity dataset to make a better initial estimate, but explicit confirmation would still be needed.
+
+I also exclude loads with missing critical fields, such as L06 and L07. Price and destination are necessary for the driver to evaluate a load, so in practice I would try to resolve those fields before ranking. L05 has a strong $2.514/mile rate, but I reject it because the Flatbed equipment type is not confirmed compatible with the driver’s Hotshot/Gooseneck setup. Broker factoring approval also remains unconfirmed.
 
 ## Check results
 
