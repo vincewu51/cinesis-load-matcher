@@ -51,38 +51,41 @@ The submission workbook includes the public repository link: https://github.com/
 
 ## How each component works
 
-### 1. Read the workbook — `workbook.py`
+### `solve.py` — command-line entry point, extraction, and ranking
 
-Read the conversation with speaker labels and spreadsheet row numbers, and read the load board separately. Only the conversation goes to the LLM; the example answers and load rows are excluded. City coordinates are looked up from the board after extraction, so the model does not invent coordinates.
+This is the main program. `main()` reads the input workbook, loads or extracts a driver profile, ranks the loads, and calls `workbook.write_outputs()` to save the results.
 
-### 2. Extract the profile — `solve.py`
+- **Data models:** `DriverProfile`, `Claim`, `Evidence`, and `Rate` define the structured response using Pydantic. Each populated claim requires supporting evidence; unknown values use `null`.
+- **Extraction:** `PROMPT` defines the extraction rules. `extract()` sends the full transcript in one OpenAI request and returns the profile with model, timestamp, prompt hash, and transcript hash. `validate_evidence()` checks that each quote occurs in its cited row after whitespace normalization. This verifies the quote's source, not whether its interpretation is correct.
+- **Replay:** `read_profile()` loads a saved profile, checks its schema version and transcript hash, and validates its evidence. This is the default path; `--refresh` requests a new extraction.
+- **Ranking:** `rank_loads()` validates load fields, applies equipment and rate constraints, and applies capacity when known. `haversine()` calculates pickup, delivery, and return-home distances. Results are sorted by unrounded effective rate, with load ID as the tie-breaker. The return value contains `top_three`, a per-load `audit`, and unresolved requirements.
 
-Send the **whole transcript in one request**, together with the extraction prompt and a structured output schema. Full context lets the model connect “Yes, that’s correct” to the dispatcher's preceding question about San Antonio, while recognizing Dallas as the current location.
+Unknown capacity produces provisional candidates. Missing current location, home base, equipment, or minimum rate stops ranking with a validation error. CLI options are `--input`, `--profile`, `--output`, `--refresh`, `--model`, and `--repo-url`.
 
-The schema asks for current location, home base, minimum rate, equipment, capacity, geographic preferences, and factoring requirements. Each field includes a value, supporting quotes with row numbers, and an interpretation. Unknown values remain `null`.
+### `workbook.py` — workbook input and result output
 
-The prompt is manually written from the task requirements and observed ambiguities. It separates current location from home, load weight from truck capacity, and hypothetical negotiations from a minimum rate. It also specifies our equipment-label interpretation: “hotshot gooseneck” maps to Hotshot and Gooseneck, without assuming generic Flatbed compatibility. The model does not calculate mileage or rank loads.
+This module handles Excel and JSON files for the main program.
 
-### 3. Validate and save the extraction — `solve.py`
+- `read_inputs()` reads the conversation as speaker/dialogue/row records and the load board as dictionaries. It checks the expected load-board headers.
+- `transcript_hash()` fingerprints the conversation for profile replay. `normalize_city()` and `city_coordinates()` match extracted city names to one unambiguous coordinate pair on the board.
+- `submission_note()` builds the take-home answer for the spreadsheet README.
+- `fill_workbook()` patches answer-sheet XML inside the XLSX archive, preserving other archive contents and refusing to overwrite the input workbook.
+- `write_outputs()` fills Part A, Part B, and the note in A11:C14; enforces the 200-word note limit; and writes `completed.xlsx`, `profile.json`, and `ranking.json` to the output directory.
 
-Validate field types, allowed equipment labels, positive numeric constraints, and evidence for populated claims. Check that every quote appears in its cited transcript row. This catches fabricated quotes, but does not prove a quote supports the interpretation; the saved evidence remains available for review.
+### `security.py` — local credentials and publication checks
 
-Save the profile with its model, timestamp, prompt hash, and transcript hash. Normal runs replay this profile without API calls; a changed transcript fails the fingerprint check. `--refresh` requests a new extraction, whose wording may differ.
+`save_key()` implements `--set-key`: it accepts a hidden terminal input and writes the key to an owner-only `.env` file, which Git ignores. `check_secrets()` implements `--check`: it scans the Git index, including embedded XLSX contents, using `contains_secret()`. The scanner checks credential patterns and the configured API key without printing matched secrets. It checks the staged snapshot, not Git history or unstaged edits.
 
-### 4. Handle unknown capacity — `solve.py`
+### `test_solver.py` — automated checks
 
-The dispatcher mentions a **44,000 lb load**, but that is a shipment weight, not the truck capacity. The extracted capacity remains `null`. The default workflow does not guess a replacement.
+The pytest suite uses the input workbook and saved profile as fixtures. It covers distance calculations, rate boundaries, capacity filtering, malformed loads, duplicate IDs, evidence validation, saved-profile fingerprints, workbook preservation, and secret detection. OpenAI responses are mocked, so tests make no live API calls. Generated test files are written to temporary directories.
 
-Loads that pass the known equipment and rate checks are ranked provisionally. Each result states the payload it requires: L03 needs 14,200 lb, L08 needs 12,600 lb, and L02 needs 11,500 lb. These are useful candidates, not confirmed offers; capacity and broker factoring approval must be checked before booking. Geographic preferences remain soft.
+The main call sequence is:
 
-### 5. Filter and rank — `solve.py`
-
-Reject incomplete or invalid rows, then apply every constraint supported by known data. Unknown capacity is recorded as a pending check rather than treated as either a pass or failure. L06 has no price; L07 has no destination. L05 has a $2.514/mile effective rate but is excluded because its Flatbed label does not match Hotshot/Gooseneck; confirm compatibility. Apply the driver's “above $2” wording as a strict `> 2` threshold to effective rate, as required by the assignment.
-
-Calculate haversine distance for Dallas → pickup, pickup → delivery, and delivery → San Antonio. For L03, these total approximately **484.256 miles**; `$1,500 / 484.256 = $3.098/mile`. Sort passing loads by the unrounded rate, using load ID to break ties, and display three decimals. If fewer than three pass, return fewer than three.
-
-### 6. Write results and protect credentials
-
-`workbook.py` writes `profile.json`, `ranking.json` (including distances, provisional checks, and rejection reasons), and `completed.xlsx`. Only the two answer sheets are changed; the original workbook and other embedded content are preserved. The workbook states that capacity is unknown and includes a submission note of at most 200 words.
-
-`security.py` saves the API key through a hidden prompt into an owner-only, Git-ignored `.env`. Its pre-publication check scans staged files, including Excel contents, without printing matched secrets. `test_solver.py` checks extraction handling, filtering, calculations, and workbook preservation without making live API calls.
+```text
+solve.main()
+  → workbook.read_inputs()
+  → solve.read_profile() or solve.extract()
+  → solve.rank_loads()
+  → workbook.write_outputs()
+```
