@@ -198,13 +198,10 @@ def rank_loads(profile: DriverProfile, loads: list[dict]) -> dict:
     for field in ["current_location", "home_base"]:
         if not getattr(profile, field).value:
             raise ValueError(f"Clarification required: {field}")
-    actual_capacity = profile.weight_capacity_lb.value
-    capacity = (
-        number(actual_capacity, "stated capacity", positive=True)
-        if actual_capacity is not None
-        else None
-    )
-    capacity_source = "transcript" if capacity is not None else "unknown"
+    # Validate stated capacity; None remains an unresolved filter.
+    capacity = profile.weight_capacity_lb.value
+    if capacity is not None:
+        capacity = number(capacity, "stated capacity", positive=True)
     current = city_coordinates(profile.current_location.value, loads)
     home = city_coordinates(profile.home_base.value, loads)
     equipment = {e.casefold() for e in (profile.equipment.value or [])}
@@ -212,7 +209,10 @@ def rank_loads(profile: DriverProfile, loads: list[dict]) -> dict:
 
     def check(passed: bool | None, explanation: str) -> dict:
         # None means there is not enough evidence to decide, rather than failure.
-        state = "unknown" if passed is None else "pass" if passed else "fail"
+        if passed is None:
+            state = "unknown"
+        else:
+            state = "pass" if passed else "fail"
         return {"status": state, "explanation": explanation}
 
     duplicates = {
@@ -232,6 +232,9 @@ def rank_loads(profile: DriverProfile, loads: list[dict]) -> dict:
             "checks": {},
             "pending_confirmations": [],
         }
+        # Keep every row in the audit, including rows excluded by early checks.
+        # Updates below modify this same dictionary; it only needs appending once.
+        audit.append(result)
         reasons = result["reasons"]
         # Missing critical load data is excluded, even if driver filters are unknown.
         for name in ["Load ID", "Origin", "Destination", "Trailer"]:
@@ -251,40 +254,37 @@ def rank_loads(profile: DriverProfile, loads: list[dict]) -> dict:
                 number(row.get("Origin Lat"), "origin latitude"),
                 number(row.get("Origin Lon"), "origin longitude"),
             )
-            dest = (
+            destination = (
                 number(row.get("Dest Lat"), "destination latitude"),
                 number(row.get("Dest Lon"), "destination longitude"),
             )
-            for lat, lon in [origin, dest]:
+            for lat, lon in [origin, destination]:
                 if not (-90 <= lat <= 90 and -180 <= lon <= 180):
                     raise ValueError("coordinates out of range")
         except ValueError as exc:
             reasons.append(str(exc))
-            audit.append(result)
             continue
         if reasons:
-            audit.append(result)
             continue
         result.update(price_usd=price, weight_lb=weight)
         # Calculate all three legs before checking the driver's rate threshold.
         legs = (
             haversine(current, origin),
-            haversine(origin, dest),
-            haversine(dest, home),
+            haversine(origin, destination),
+            haversine(destination, home),
         )
-        total = sum(legs)
+        total_miles = sum(legs)
         result.update(
             deadhead_to_origin_miles=legs[0],
             loaded_miles=legs[1],
             deadhead_home_miles=legs[2],
-            total_miles=total,
+            total_miles=total_miles,
         )
-        if total <= 0:
+        if total_miles <= 0:
             reasons.append("zero total trip distance")
-            audit.append(result)
             continue
-        rpm = price / total
-        result["effective_rate_per_mile"] = rpm
+        effective_rate = price / total_miles
+        result["effective_rate_per_mile"] = effective_rate
 
         # Each filter independently reports pass, fail, or unknown. Add future
         # filters here; status aggregation below does not depend on filter names.
@@ -318,9 +318,9 @@ def rank_loads(profile: DriverProfile, loads: list[dict]) -> dict:
             )
         else:
             meets_rate = (
-                rpm > minimum.dollars_per_mile
+                effective_rate > minimum.dollars_per_mile
                 if minimum.comparison == ">"
-                else rpm >= minimum.dollars_per_mile
+                else effective_rate >= minimum.dollars_per_mile
             )
             checks["minimum_rate"] = check(
                 meets_rate,
@@ -339,9 +339,8 @@ def rank_loads(profile: DriverProfile, loads: list[dict]) -> dict:
         )
 
         # Reject on any known failure; otherwise retain unknowns as provisional.
-        checks = result["checks"].values()
-        failures = [c["explanation"] for c in checks if c["status"] == "fail"]
-        pending = [c["explanation"] for c in checks if c["status"] == "unknown"]
+        failures = [c["explanation"] for c in checks.values() if c["status"] == "fail"]
+        pending = [c["explanation"] for c in checks.values() if c["status"] == "unknown"]
         result["pending_confirmations"] = pending
         result["reasons"] = failures or pending
         if failures:
@@ -350,21 +349,28 @@ def rank_loads(profile: DriverProfile, loads: list[dict]) -> dict:
             result["status"] = "provisional"
         else:
             result["status"] = "eligible"
-        audit.append(result)
+
     candidates = [r for r in audit if r["status"] in {"eligible", "provisional"}]
     # Rank both eligible and provisional options by the same full-precision metric.
     candidates.sort(key=lambda r: (-r["effective_rate_per_mile"], r["load_id"]))
-    pending = sorted({question for row in candidates for question in row["pending_confirmations"]})
+    # Collect confirmation questions once for the complete candidate list.
+    confirmations = sorted({q for row in candidates for q in row["pending_confirmations"]})
+    if not candidates:
+        mode = "no_candidates"
+    elif confirmations:
+        mode = "provisional"
+    else:
+        mode = "eligible"
     return {
-        "mode": "no_candidates" if not candidates else "provisional" if pending else "eligible",
+        "mode": mode,
         "capacity_lb": capacity,
-        "capacity_source": capacity_source,
+        "capacity_source": "transcript" if capacity is not None else "unknown",
         "current_coordinates": current,
         "home_coordinates": home,
         "earth_radius_miles": EARTH_RADIUS_MILES,
         "top_three": candidates[:3],
         "audit": audit,
-        "unverified_requirements": pending,
+        "unverified_requirements": confirmations,
         "notes": [
             "Geographic preferences are soft, not hard filters.",
             "Generic Flatbed is not assumed compatible with Hotshot/Gooseneck.",
